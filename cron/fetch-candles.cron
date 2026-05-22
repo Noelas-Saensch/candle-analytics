@@ -1,0 +1,30 @@
+# Candle Analytics — Cron Configuration
+#
+# Place this file in /etc/cron.d/candle-analytics or add to crontab:
+#   crontab cron/fetch-candles.cron
+#
+# All paths below are examples — adjust to your setup.
+
+# ─── Environment ─────────────────────────────────────────────
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+PROJECT_DIR=/home/anymous/PROJETS/candle-analytics
+LOG_DIR=/var/log/candle-analytics
+
+# ── Fetch every minute (for 1m timeframe) ───────────────────
+# * * * * * root cd $PROJECT_DIR && python3 -m candles.main fetch --timeframes "1m" >> $LOG_DIR/fetch-1m.log 2>&1
+
+# ── Fetch every hour (for 1H timeframe) ─────────────────────
+# 0 * * * * root cd $PROJECT_DIR && python3 -m candles.main fetch --timeframes "1H" >> $LOG_DIR/fetch-1H.log 2>&1
+
+# ── Fetch daily (for 1D timeframe) ──────────────────────────
+# 0 0 * * * root cd $PROJECT_DIR && python3 -m candles.main fetch --timeframes "1D" >> $LOG_DIR/fetch-1D.log 2>&1
+
+# ── Backfill 5000 bars on server boot (once) ────────────────
+# @reboot root cd $PROJECT_DIR && python3 scripts/backfill.py >> $LOG_DIR/backfill.log 2>&1
+
+# ── Usage notes ─────────────────────────────────────────────
+# - Uncomment lines above and adjust the user (root → your_user)
+# - Create log dir: sudo mkdir -p /var/log/candle-analytics && sudo chmod 777 /var/log/candle-analytics
+# - Test a command manually before enabling cron:
+#     cd /home/anymous/PROJETS/candle-analytics && python3 -m candles.main fetch --timeframes "1H"
