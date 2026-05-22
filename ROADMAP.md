@@ -47,8 +47,10 @@ Supported: `1m, 5m, 15m, 30m, 1H, 2H, 4H, 6H, 12H, 1D, 2D, 3D, 1W, 2W, 1M, 2M, 3
 - [x] FastAPI server + routes
 - [x] Backfill script (last 5000 bars per default TF)
 - [x] Cron doc template
-- [x] opencode skill + command
-- [x] Git init + push to GitHub
+- [x] opencode skill + command (candle-fetch)
+- [x] Git init (push blocked — expired token)
+- [x] session-export command + skill
+- [x] session-import command
 
 ### 🔄 Modified
 - *(none yet)*
@@ -65,3 +67,4 @@ Supported: `1m, 5m, 15m, 30m, 1H, 2H, 4H, 6H, 12H, 1D, 2D, 3D, 1W, 2W, 1M, 2M, 3
 3. **SQLite + CSV dual storage** — structured queries + portability.
 4. **One CLI to rule them** — `python -m candles` handles fetch, backfill, server.
 5. **Every session logged** — see CHRONOLOGIE.md.
+6. **Sessions auto-saved** — use `/session-export` to save full AI session to `sessions_upload/`.

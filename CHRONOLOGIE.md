@@ -60,3 +60,29 @@
 - Binance klines endpoint is fully public — no API keys needed.
 - `_seconds_until_next_hour` helper from the reference project's scheduler was adapted for the cron doc.
 - The project follows the same code conventions as `Binance - Algo gestion` (httpx, pydantic-settings, async).
+
+---
+
+## 2026-05-22 — Session 002 : Session export/import commands
+
+**Duration** : ~30min  
+**Context** : Added auto export/import for AI sessions
+
+### Added
+- **Session management skill** — `~/.opencode/skill/session-management.skill.md`
+- **session-export command** — `~/.opencode/command/session-export.command.md` (writes full session to `sessions_upload/`)
+- **session-import command** — `~/.opencode/command/session-import.command.md` (reads sessions from `sessions_upload/`)
+- **Session export test** — `sessions_upload/session-2026-05-22_16-30-00.md` (auto-export of session 001+002)
+
+### Usage
+```
+/session-export              → export to current project's sessions_upload/
+/session-export actual       → same as above
+/session-export <project>    → export to /home/anymous/PROJETS/<project>/sessions_upload/
+/session-import              → import sessions from current project
+/session-import <project>    → import sessions from specified project
+```
+
+### Notes
+- Folder naming is `sessions_upload/` (plural) at project root
+- If folder doesn't exist, command creates it automatically
