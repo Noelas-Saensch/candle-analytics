@@ -10,8 +10,8 @@
 
 | Pair | Binance | Hyperliquid | Status |
 |------|---------|-------------|--------|
-| BTC/USDC | BTCUSDC | TBD | ✅ active |
-| GOLD/USDC | PAXGUSDC | PAXGUSDC | ✅ active |
+| BTC/USDC | BTCUSDC | BTC | ✅ active |
+| GOLD/USDC | PAXGUSDC | PAXG | ✅ active |
 | EURC/USDC | ❌ no pair | TBD | ❌ abandoned |
 
 > **Note**: USDT pairs forbidden by French regulation. Only USDC pairs used.
@@ -29,11 +29,12 @@ Supported: `1m, 5m, 15m, 30m, 1H, 2H, 4H, 6H, 12H, 1D, 2D, 3D, 1W, 2W, 1M, 2M, 3
 ## TASKS
 
 ### 🟢 To Do
-- [ ] Hyperliquid client implementation (check available endpoints)
-- [ ] WebSocket support for real-time candle updates
-- [ ] Dockerfile + docker-compose for server deployment
-- [ ] Dashboard (simple web UI for candle visualisation)
-- [ ] Multi-user API key management
+- [x] Hyperliquid client implementation
+- [x] WebSocket support for real-time candle updates
+- [x] Dockerfile + docker-compose for server deployment
+- [x] Dashboard (simple web UI for candle visualisation)
+- [x] Dashboard: add time range selector + volume histogram
+- [ ] Percentile rank analysis page (OHLC metrics in % from OPEN, volume %, filters)
 
 ### ✅ Done
 - [x] Project scaffold (dirs, .env, .gitignore, requirements.txt)

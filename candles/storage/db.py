@@ -60,6 +60,8 @@ def query_candles(
     timeframe: str | None = None,
     limit: int = 1000,
     since: int | None = None,
+    start_time: int | None = None,
+    end_time: int | None = None,
 ) -> list[dict]:
     conn = _get_connection()
     try:
@@ -77,6 +79,12 @@ def query_candles(
         if since:
             conditions.append("timestamp >= ?")
             params.append(since)
+        if start_time:
+            conditions.append("timestamp >= ?")
+            params.append(start_time)
+        if end_time:
+            conditions.append("timestamp <= ?")
+            params.append(end_time)
 
         where = " AND ".join(conditions) if conditions else "1"
         cursor = conn.execute(

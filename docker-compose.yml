@@ -1,0 +1,23 @@
+services:
+  api:
+    build: .
+    container_name: candle-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./sessions_upload:/app/sessions_upload
+    env_file:
+      - .env
+    restart: unless-stopped
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+  stream:
+    build: .
+    container_name: candle-stream
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    command: python -m candles.main stream

@@ -41,6 +41,11 @@ def cmd_query(args):
         print(f"{r['timestamp']:<18} {r['open']:>12.4f} {r['high']:>12.4f} {r['low']:>12.4f} {r['close']:>12.4f} {r['volume']:>12.2f}")
 
 
+def cmd_stream(args):
+    from candles.stream.runner import run_stream
+    asyncio.run(run_stream())
+
+
 def cmd_server(args):
     import uvicorn
     from api.main import app
@@ -64,6 +69,9 @@ def main():
     query_p.add_argument("--timeframe")
     query_p.add_argument("--limit", type=int, default=100)
     query_p.set_defaults(func=cmd_query)
+
+    stream_p = sub.add_parser("stream", help="Start WebSocket stream for real-time candles")
+    stream_p.set_defaults(func=cmd_stream)
 
     server_p = sub.add_parser("server", help="Start FastAPI server")
     server_p.add_argument("--host", default=None)
