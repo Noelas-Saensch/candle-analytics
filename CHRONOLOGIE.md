@@ -86,3 +86,40 @@
 ### Notes
 - Folder naming is `sessions_upload/` (plural) at project root
 - If folder doesn't exist, command creates it automatically
+
+---
+
+## 2026-05-22 — Session 003 : Session audit (repeated topics analysis)
+
+**Duration** : ~30min  
+**Context** : Added semantic analysis tool to detect repeated questions across sessions
+
+### Added
+- **Session analysis script** — `scripts/analyze_sessions.py` (discovery → parse → embed → cluster → report)
+- **session-audit command** — `~/.opencode/command/session-audit.command.md`
+- **session-analysis skill** — `~/.opencode/skill/session-analysis.skill.md`
+- **Ollama embedding model** — `nomic-embed-text` pulled (274 MB)
+
+### How it works
+1. Discovers all `sessions_upload/` folders under `PROJETS/` and `DEV & CODE/`
+2. Parses user messages from session `.md` files
+3. Embeds via Ollama's `nomic-embed-text` → 768-dim vectors
+4. Clusters by cosine similarity (Union-Find, default threshold 0.65)
+5. Reports repeated topics grouped by frequency (🔴 ≥5, 🟡 3–4, 🟢 2)
+
+### Usage
+```
+/session-audit                     → scan all projects
+/session-audit --project NAME      → single project
+/session-audit --threshold 0.5     → adjust sensitivity
+```
+
+### Test results
+- Found 2 session files in candle-analytics
+- Parsed 5 user messages (min 15 chars)
+- At threshold 0.5: 4 messages clustered (project setup topic), 1 unique
+- At threshold 0.65: all 5 unique (too strict for small dataset)
+- Default threshold kept at 0.65 (will be more useful as sessions accumulate)
+
+### Dependency
+- `ollama pull nomic-embed-text` (274 MB) — no Python ML packages needed
