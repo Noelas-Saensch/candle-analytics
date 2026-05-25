@@ -1,5 +1,12 @@
 # Candle-Analytics — Architecture
 
+> **Note** : Cette vue d'ensemble est simplifiée. Voir `USERS_DOCUMENT/project-docs/` pour les docs détaillés :
+> - `ARCHITECTURE.md` — architecture complète (data flow, layers, IPC, screen sessions)
+> - `API.md` — tous les endpoints REST + WebSocket
+> - `AGENTS.md` — agents LLM (Strategy Lab, Vibe Lab)
+> - `FRONTEND.md` — SPA architecture
+> - `STRATEGY_ENGINE.md` — système de conditions et edge search
+
 ## Stack
 
 | Layer | Technology |
@@ -73,6 +80,11 @@ Analyze tab adds a metric filter dropdown.
 
 - **USDC only** — No USDT (French regulation). Pairs use USDC quote.
 - **Dual storage** — SQLite for queries, CSV for portability/backup.
-- **Percentiles computed server-side** — `/api/analyze/data` returns pre-computed percentile ranks for all 7 metrics.
+- **Metrics pre-computed at insert time** — All 7 OHLC metrics (OC%, OH%, OL%, HL%, HC%, LC%, Vol%) are computed during `save_candles()` and stored as `metrics TEXT` JSON. Avoids server-side recomputation on every `/api/candles` query.
+- **Percentiles pre-computed in DB** — Stored as `percentiles TEXT` JSON, backfilled on server startup for the last N candles (configurable via `BACKFILL_PCTL_BARS`). Client can also recompute locally from `metrics` values.
+- **Percentiles removed from server API** — `/analyze/data` no longer computes percentiles server-side; client computes from `metrics` values in JS for the active working set.
+- **Per-family chart type system** — 6 families (Distribution, Time Series, Correlation, Percentile, Pattern, Overlay), each with its own chart type `<select>` and per-metric checkboxes.
+- **Client-side data caching** — In-memory cache (`_cachedCandles`, `_cacheKey`) shared across tabs. Plans to move to `sessionStorage` for persistence across page refreshes.
+- **Background data prefetch** — `prefetchAnalyze()` runs after chart loads to pre-load Metrics/RAW DATA data before user switches tabs.
 - **Time window** — Date pickers control chart range; no candles-limit dropdown.
 - **Dark theme** — `#1a1a2e` background, `#e94560` accent.

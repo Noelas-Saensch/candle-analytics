@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 from candles.config import settings
@@ -19,6 +20,7 @@ def _get_connection() -> sqlite3.Connection:
             low REAL NOT NULL,
             close REAL NOT NULL,
             volume REAL NOT NULL,
+            metrics TEXT,
             PRIMARY KEY (exchange, symbol, timeframe, timestamp)
         )
     """)
@@ -27,6 +29,12 @@ def _get_connection() -> sqlite3.Connection:
         ON ohlcv(exchange, symbol, timeframe, timestamp)
     """)
     conn.commit()
+    # migrate: add metrics column if missing (older DBs)
+    try:
+        conn.execute("ALTER TABLE ohlcv ADD COLUMN metrics TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -36,14 +44,22 @@ def save_candles(candles: list[dict]) -> int:
         count = 0
         for c in candles:
             try:
+                o, h, l, cl, v = c["open"], c["high"], c["low"], c["close"], c["volume"]
+                metrics = json.dumps({
+                    "oc": (cl - o) / o * 100,
+                    "oh": (h - o) / o * 100,
+                    "ol": (l - o) / o * 100,
+                    "hl": (h - l) / o * 100,
+                    "hc": (h - cl) / o * 100,
+                    "lc": (l - cl) / o * 100,
+                })
                 conn.execute("""
                     INSERT OR REPLACE INTO ohlcv
-                    (exchange, symbol, timeframe, timestamp, open, high, low, close, volume)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (exchange, symbol, timeframe, timestamp, open, high, low, close, volume, metrics)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     c["exchange"], c["symbol"], c["timeframe"],
-                    c["timestamp"], c["open"], c["high"],
-                    c["low"], c["close"], c["volume"],
+                    c["timestamp"], o, h, l, cl, v, metrics,
                 ))
                 count += 1
             except Exception:
@@ -96,6 +112,40 @@ def query_candles(
         conn.close()
 
 
+def count_candles(
+    exchange: str | None = None,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+    start_time: int | None = None,
+    end_time: int | None = None,
+) -> int:
+    conn = _get_connection()
+    try:
+        conditions = []
+        params = []
+        if exchange:
+            conditions.append("exchange = ?")
+            params.append(exchange)
+        if symbol:
+            conditions.append("symbol = ?")
+            params.append(symbol)
+        if timeframe:
+            conditions.append("timeframe = ?")
+            params.append(timeframe)
+        if start_time:
+            conditions.append("timestamp >= ?")
+            params.append(start_time)
+        if end_time:
+            conditions.append("timestamp <= ?")
+            params.append(end_time)
+        where = " AND ".join(conditions) if conditions else "1"
+        cursor = conn.execute(f"SELECT COUNT(*) as cnt FROM ohlcv WHERE {where}", params)
+        row = cursor.fetchone()
+        return row["cnt"] if row else 0
+    finally:
+        conn.close()
+
+
 def get_available_pairs() -> list[dict]:
     conn = _get_connection()
     try:
@@ -103,5 +153,31 @@ def get_available_pairs() -> list[dict]:
             "SELECT DISTINCT exchange, symbol, timeframe FROM ohlcv ORDER BY exchange, symbol, timeframe"
         )
         return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def backfill_metrics() -> int:
+    """Compute and store metrics for rows where metrics is NULL."""
+    conn = _get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT rowid, open, high, low, close FROM ohlcv WHERE metrics IS NULL"
+        ).fetchall()
+        count = 0
+        for r in rows:
+            o, h, l, cl = r["open"], r["high"], r["low"], r["close"]
+            metrics = json.dumps({
+                "oc": (cl - o) / o * 100,
+                "oh": (h - o) / o * 100,
+                "ol": (l - o) / o * 100,
+                "hl": (h - l) / o * 100,
+                "hc": (h - cl) / o * 100,
+                "lc": (l - cl) / o * 100,
+            })
+            conn.execute("UPDATE ohlcv SET metrics = ? WHERE rowid = ?", (metrics, r["rowid"]))
+            count += 1
+        conn.commit()
+        return count
     finally:
         conn.close()

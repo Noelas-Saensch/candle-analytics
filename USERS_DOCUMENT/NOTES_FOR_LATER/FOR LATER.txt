@@ -1,0 +1,10 @@
+ENGINE SEARCH GROUP (below the user input group in STRATEGY LAB) : 
+
+Will contain the followings settings (global list, jsut to dont forget) : 
+- Montecarlo
+- Lookforward
+- Sweep
+- TRAIN PERIOD - Intial training window
+- BACKTEST PERIOD - Test avec train period
+- Calculer avec des timeframe inférieures pour se rapprocher un peu plus de résultat (plus de réalisme n backtest, mais toujours pas equivalent au livetest)
+- Ajouter un onglet graphique de prix avec plot des trades (a definir comment) del'actif backesté

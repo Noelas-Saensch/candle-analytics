@@ -1,0 +1,21 @@
+STRATEGY LAB : 
+
+Now the chat is shoiwng the direct response of tha AI but i need the JSON file that will fullfill the user input settings.
+
+So we should directly implement the user input template strategy below the tchat.
+Default template (all inputs prefullfilled) is :
+- PAIR INFOS : BINANCE - BTCUSD - 1H
+- TRADE DIRECTION : LONG ONLY [LONG / SHORT, LONG, SHORT]
+- OPEN TRADE : OPEN CONDITIONS - MARKET ORDER [MARKET ORDER, STOP MARKET, STOP LIMIT, etc...] - PERCENT OF EQUITY [PERCENTOF EQUITY, FIXE AMOUNT] - 1% per trade
+- CLOSE TRADE : CLOSE CONDITIONS - 
+	- TAKE PROFIT : MARKET ORDER [MARKET ORDER, STOP MARKET, STOP LIMIT, etc...] - PERCENT OF POSITION [PERCENTOF OF POSITION, FIXE AMOUNT] - 100% of position
+	- STOP LOSS : MARKET ORDER [MARKET ORDER, STOP MARKET, STOP LIMIT, etc...]  - PERCENT OF POSITION [PERCENTOF OF POSITION, FIXE AMOUNT] - 100% of position
+	- TRAILLING STOP : OFF [OFF,ON] PERCENT TRAILLING [PERCENT TRAILLING, ATR, etc..] - PERCENT OF POSITION [PERCENTOF OF POSITION, FIXE AMOUNT] - 100% of position
+
+AUTRES : 
+- Pour chaque nouvelle paire ajoutés (exchanges ou paire ou timeframe différents), créer un nouveau groupe dédié
+- Si au sein d'une meme paire, il y a des ordres LONG et SHORT, alor séparer les ORDER SIDE en 2 sous-groupes différents
+- S'il y a plusieurs OPEN TRADE dans une meme direction, créer autant de sousgroupes que d'OPEN TRADE, idem pour CLOSE TRADE
+- Les OPEN et CLOSE CONDTIONS sont assez specifiques, et difficile a parametrer car les possibilités sont infinies. A etudier ensemble sur quelle approche utiliser. Par defaut moi je voulais l'outil pour les percntile rank des distances en % entres les différentes OHLCV. 
+Peut etre créer des categories auqules ils appartiennet.
+

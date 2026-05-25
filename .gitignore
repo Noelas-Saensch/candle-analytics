@@ -9,3 +9,10 @@ data/
 *.egg-info/
 dist/
 build/
+.lint-tmp/
+node_modules/
+.husky/_/
+target/
+.venv/
+sessions_upload/
+

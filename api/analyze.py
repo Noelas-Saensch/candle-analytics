@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
 
@@ -228,40 +229,27 @@ async def analyze_data(
 
     candles = []
     for r in rows:
-        o, h, l, c = r["open"], r["high"], r["low"], r["close"]
-        v = r["volume"]
-        candles.append({
-            "t": r["timestamp"],
-            "o": o, "h": h, "l": l, "c": c, "v": v,
-            "metrics": {
-                "oc": (c - o) / o * 100,
+        o, h, l, cl, v = r["open"], r["high"], r["low"], r["close"], r["volume"]
+        # use stored metrics if available, otherwise compute on the fly
+        if r.get("metrics"):
+            metrics = json.loads(r["metrics"])
+        else:
+            metrics = {
+                "oc": (cl - o) / o * 100,
                 "oh": (h - o) / o * 100,
                 "ol": (l - o) / o * 100,
                 "hl": (h - l) / o * 100,
-                "hc": (h - c) / o * 100,
-                "lc": (l - c) / o * 100,
-            },
+                "hc": (h - cl) / o * 100,
+                "lc": (l - cl) / o * 100,
+            }
+        candles.append({
+            "t": r["timestamp"],
+            "o": o, "h": h, "l": l, "c": cl, "v": v,
+            "metrics": metrics,
         })
 
     max_vol = max(c["v"] for c in candles) or 1
     for c in candles:
         c["metrics"]["vol"] = (c["v"] / max_vol) * 100
 
-    for metric in ["oc", "oh", "ol", "hl", "hc", "lc", "vol"]:
-        sorted_vals = sorted(c["metrics"][metric] for c in candles)
-        for c in candles:
-            if "percentiles" not in c:
-                c["percentiles"] = {}
-            c["percentiles"][metric] = percentile_rank(sorted_vals, c["metrics"][metric])
-
     return {"count": len(candles), "candles": candles}
-
-
-def percentile_rank(sorted_list: list[float], value: float) -> float:
-    if not sorted_list:
-        return 0
-    count = 0
-    for v in sorted_list:
-        if v < value:
-            count += 1
-    return (count / len(sorted_list)) * 100

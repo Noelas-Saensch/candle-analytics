@@ -1,0 +1,27 @@
+{
+  "name": "candle-analytics",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint:js": "bash scripts/lint-js.sh",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Noelas-Saensch/candle-analytics.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Noelas-Saensch/candle-analytics/issues"
+  },
+  "homepage": "https://github.com/Noelas-Saensch/candle-analytics#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.0"
+  }
+}

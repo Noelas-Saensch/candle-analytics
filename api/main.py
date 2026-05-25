@@ -1,5 +1,8 @@
 from contextlib import asynccontextmanager
 import logging
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path="/home/anymous/PROJETS/candle-analytics/.env")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router as api_router
 from api.dashboard import router as dashboard_router
 from api.analyze import router as analyze_router
+from api.strategy_lab import router as strategy_lab_router
+from api.vibe_lab import router as vibe_lab_router
 from candles.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,6 +20,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("candle-analytics server starting")
+    from candles.storage.db import backfill_metrics
+    n = backfill_metrics()
+    if n:
+        logger.info("backfilled %d rows with pre-computed metrics", n)
     yield
     logger.info("candle-analytics server stopped")
 
@@ -35,6 +44,8 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api")
 app.include_router(dashboard_router)
 app.include_router(analyze_router)
+app.include_router(strategy_lab_router)
+app.include_router(vibe_lab_router)
 
 
 @app.get("/api/health")
