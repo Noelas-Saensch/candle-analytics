@@ -192,7 +192,7 @@ All items listed in the [Done section of previous versions](./CHRONOLOGIE.md).
 
 #### Audit code
 - [ ] **ES5 scan** — vérifier qu'aucun `const`/`let`/`?.`/`for...of`/`NodeList.forEach` ne subsiste dans `strategy_lab.py` et `vibe_lab.py`
-- [ ] **Python escape audit** — scanner tous les `"""..."""` strings pour `\w`, `\s`, `\d`, `\'`, `\n` mal échappés
+- [x] **Python escape audit** — automatisé via `scripts/check-pyjs-quotes.sh` + skill `pyjs-quote-debug`
 - [ ] **Dead code removal** — `grep` des fonctions JS/Python non appelées, imports inutilisés
 - [ ] **Error handling** — vérifier que toutes les routes API et tous les `fetch()` frontend ont des `.catch()` / `try-except`
 - [ ] **Shadowed builtins** — `all`, `type`, `id`, `input`, `filter`, `map`, `open` etc. utilisés comme noms de variables
@@ -215,10 +215,17 @@ All items listed in the [Done section of previous versions](./CHRONOLOGIE.md).
 - [ ] **WS health** — test automatisé de connexion WebSocket
 - [ ] **Manual test checklist** — document avec la procédure de test complète
 
+#### Skills & Tools
+- [x] **github-backup skill** — backup GitHub automatisé (`.opencode/skills/github-backup/`)
+- [x] **subagent-cache skill** + `scripts/cache-subagent.sh` — cache timestampé des résultats sub-agent
+- [x] **pyjs-quote-debug skill** + `scripts/check-pyjs-quotes.sh` — détection bugs quoting Python→JS
+- [x] **Pre-commit hook amélioré** — utilise `scripts/check-pyjs-quotes.sh` au lieu du naive `const` grep
+
 #### Documentation
 - [ ] **README.md** — setup, architecture, commandes utiles
 - [ ] **API reference** — lister tous les endpoints avec leur méthode, paramètres, réponses
 - [ ] **Agent diagram** — schéma ascii de l'architecture agent/file-bridge/WS
+- [x] **Per-page docs** — 4 pages détaillées dans `USERS_DOCUMENT/project-docs/pages/`
 
 ### Phase 4 (🔮 Future)
 - [ ] Onchain data (whales, exchange flows)

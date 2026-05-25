@@ -11,6 +11,8 @@ All UIs are **inline HTML/JS in Python f-strings** — no build step, no framewo
 | `/strategy-lab` | `api/strategy_lab.py` | Chart.js (results) | 4-panel: Chat ↔ Parameters (with Engine Search Group) ↔ Conditions (3-chip input) ↔ Results (Edge, Sweep, WF, MC, Export) |
 | `/vibe-lab` | `api/vibe_lab.py` | Chart.js (equity curve) | 3-tab: Describe ↔ Code ↔ Results (backtest metrics, LLM analysis, comparison) |
 
+> **Detailed per-page docs**: See `USERS_DOCUMENT/project-docs/pages/` for in-depth documentation of each page (dashboard, analyze, strategy-lab, vibe-lab).
+
 ## JS conventions
 
 - **ES5 only** — `var`, function expressions, no arrow functions, no `?.`, no `for...of`, no `NodeList.forEach`, no template literals

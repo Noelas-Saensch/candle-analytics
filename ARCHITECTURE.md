@@ -6,6 +6,7 @@
 > - `AGENTS.md` — agents LLM (Strategy Lab, Vibe Lab)
 > - `FRONTEND.md` — SPA architecture
 > - `STRATEGY_ENGINE.md` — système de conditions et edge search
+> - `pages/` — per-page docs (dashboard, strategy-lab, vibe-lab, analyze)
 
 ## Stack
 
