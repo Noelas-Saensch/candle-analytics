@@ -801,10 +801,19 @@ CHRONOLOGIE.md is the **input data** for the synthesis — without it, the synth
 - **Skill `pyjs-quote-debug`** — `.opencode/skills/pyjs-quote-debug/SKILL.md` + `scripts/check-pyjs-quotes.sh` : détection automatique des bugs de quoting Python→JS
 - **Documentation par page** — `USERS_DOCUMENT/project-docs/pages/{dashboard,strategy-lab,vibe-lab,analyze}.md`
 
-### Known Issues
-- Le backup GitHub n'a pas encore été pushé (première fois le faire en fin de session)
+### Added (suite)
+- **Sécurité external sources** — guide dans `AGENTS.md` avec classement : OpenSSF Scorecard ★★★★★, Trivy ★★★★★, Semgrep ★★★★, Bandit ★★★
+- **Token GitHub redacted** — `ghp_*` retiré de l'historique git via `git filter-repo`, sauvegardé localement dans `.opencode/local/`
+- **GROQ API validé** — testé avec requête réelle envoyée au Strategy Lab agent → réponse `config_update` reçue en 15s
+- **Pre-commit hook réparé** — utilisait `python3` au lieu de `bash` pour lancer `check-pyjs-quotes.sh`
+
+### Fixed (suite)
+- **GitHub push secret scan** — le token PAT dans `sessions_upload/session-ses_1b00.md` bloquait le push. Solution : `git filter-repo` + redirection URL GitHub + re-push
+- **Pre-commit const check** — le hook naïf détectait les `const` JS dans différentes fonctions comme des redeclarations. Solution : utiliser `check-pyjs-quotes.sh` qui extrait le JS et le valide avec `node --check`
 
 ### Notes
 - ERRORS.md mis à jour avec l'entrée JS quoting fix + script de vérification
 - Tous les scripts skills sont exécutables et testés
 - 16 fichiers Python passent le check-pyjs-quotes.sh
+- Projet entier commité et pushé sur GitHub : `git@github.com:Noelas-Saensch/candle-analytics.git`
+- Session exportée automatiquement dans `sessions_upload/auto-export-*.md`
