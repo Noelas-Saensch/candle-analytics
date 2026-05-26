@@ -220,6 +220,13 @@ All items listed in the [Done section of previous versions](./CHRONOLOGIE.md).
 - [x] **subagent-cache skill** + `scripts/cache-subagent.sh` — cache timestampé des résultats sub-agent
 - [x] **pyjs-quote-debug skill** + `scripts/check-pyjs-quotes.sh` — détection bugs quoting Python→JS
 - [x] **Pre-commit hook amélioré** — utilise `scripts/check-pyjs-quotes.sh` au lieu du naive `const` grep
+- [x] **GROQ API vérifié** — agent répond correctement (testé avec requête réelle → config_update reçue)
+- [x] **JS SyntaxError fixé** — 3 onclick handlers dans strategy_lab.py (selectCatalogCategory + 2×addFromCatalog)
+
+#### Sécurité (external sources)
+- [x] **Documenté dans AGENTS.md** — procédure d'analyse de sécurité pour repos/scripts externes
+- [x] **Outils recommandés** — OpenSSF Scorecard, Trivy, Semgrep, Bandit (avec classement)
+- [ ] **Installer et configurer** — ajouter au CI/CD ou pre-commit (optionnel)
 
 #### Documentation
 - [ ] **README.md** — setup, architecture, commandes utiles

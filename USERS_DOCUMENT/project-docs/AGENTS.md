@@ -50,3 +50,34 @@ Check: `screen -ls` or `ps aux | grep "api/agent"`
 | `GROQ_API_KEY` | Set in `.env` |
 | Model | `qwen/qwen3-32b` (free tier) |
 | Timeout | 30s (agent), 60s (vibe-agent, with retries) |
+
+## External Sources Security
+
+This project uses external/untrusted sources (GitHub repos, scripts, skills). Before importing or executing anything:
+
+### Recommended security analysis tools
+
+| Tool | Type | Purpose | Security | Ease | Update frequency |
+|------|------|---------|----------|------|-----------------|
+| **OpenSSF Scorecard** | CLI/GitHub Action | Repo security posture score (0-10) | ★★★★★ | ★★★★ | Weekly |
+| **Trivy** | CLI | Vulnerability scan for files, deps, containers | ★★★★★ | ★★★★★ | Daily |
+| **Semgrep** | CLI | Static analysis for code patterns & anti-patterns | ★★★★ | ★★★★ | Weekly |
+| **Bandit** | CLI | Python-specific security linter | ★★★ | ★★★★★ | Monthly |
+
+### Quick-check procedure before importing
+
+```bash
+# 1. Scorecard: assess the repo's security posture
+npx @openssf/scorecard --repo=github.com/owner/repo
+
+# 2. Trivy: scan the cloned directory for vulnerabilities
+trivy fs /path/to/repo
+
+# 3. Semgrep: check for security anti-patterns
+semgrep --config=auto /path/to/repo
+```
+
+### If any tool scores LOW (< 5/10)
+- Do NOT execute the code
+- Review manually for obfuscation, network calls, file access
+- Sandbox in Docker before trusting
