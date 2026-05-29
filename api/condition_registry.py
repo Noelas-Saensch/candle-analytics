@@ -2,7 +2,33 @@
 
 Used by /api/conditions/search endpoint and the Strategy Lab frontend
 for search-as-you-type condition input.
+
+Dynamically extended with custom_types/ registry (orders, indicators,
+conditions, CDL patterns).
 """
+
+import sys
+from pathlib import Path
+
+# Load custom types registry
+_custom_dir = Path(__file__).parent.parent / "custom_types"
+if _custom_dir.exists():
+    sys.path.insert(0, str(_custom_dir.parent))
+    try:
+        from custom_types.registry import (
+            flatten_custom_for_registry,
+            get_order_type_definitions,
+            search_custom_conditions,
+            get_condition_template,
+            export_full_catalog,
+            save_custom_indicators,
+        )
+        _CUSTOM_ENTRIES = flatten_custom_for_registry()
+    except Exception as e:
+        print(f"[condition_registry] Custom types load warning: {e}")
+        _CUSTOM_ENTRIES = []
+else:
+    _CUSTOM_ENTRIES = []
 
 CONDITION_REGISTRY = {
     "ohlcv_metrics": {
@@ -213,6 +239,58 @@ CONDITION_REGISTRY = {
                         ],
                         "outputs": [{"name": "value", "label": "PSAR value"}],
                         "ops": ["gt", "lt"],
+                        "comparisons": ["price_above", "price_below"],
+                    },
+                },
+            },
+            "ichimoku": {
+                "id": "ichimoku",
+                "label": "Ichimoku Cloud",
+                "description": "Ichimoku Kinko Hyo — support/resistance, trend direction, and momentum at a glance",
+                "indicators": {
+                    "ichimoku_tenkan_9": {
+                        "id": "ichimoku_tenkan_9",
+                        "label": "Tenkan-sen (9)",
+                        "description": "Conversion Line — (highest high + lowest low)/2 over 9 periods. Short-term trend indicator.",
+                        "params": [],
+                        "outputs": [{"name": "value", "label": "Tenkan value"}],
+                        "ops": ["gt", "gte", "lt", "lte"],
+                        "comparisons": ["price_above", "price_below", "crossover", "crossunder"],
+                    },
+                    "ichimoku_kijun_26": {
+                        "id": "ichimoku_kijun_26",
+                        "label": "Kijun-sen (26)",
+                        "description": "Base Line — (highest high + lowest low)/2 over 26 periods. Medium-term trend indicator.",
+                        "params": [],
+                        "outputs": [{"name": "value", "label": "Kijun value"}],
+                        "ops": ["gt", "gte", "lt", "lte"],
+                        "comparisons": ["price_above", "price_below", "crossover", "crossunder"],
+                    },
+                    "ichimoku_senkou_a": {
+                        "id": "ichimoku_senkou_a",
+                        "label": "Senkou Span A",
+                        "description": "Leading Span A — (Tenkan + Kijun)/2. Cloud edge, forward-looking support/resistance.",
+                        "params": [],
+                        "outputs": [{"name": "value", "label": "Senkou A value"}],
+                        "ops": ["gt", "gte", "lt", "lte"],
+                        "comparisons": ["price_above", "price_below"],
+                    },
+                    "ichimoku_senkou_b": {
+                        "id": "ichimoku_senkou_b",
+                        "label": "Senkou Span B",
+                        "description": "Leading Span B — (highest high + lowest low)/2 over 52 periods. Cloud edge, stronger support/resistance.",
+                        "params": [],
+                        "outputs": [{"name": "value", "label": "Senkou B value"}],
+                        "ops": ["gt", "gte", "lt", "lte"],
+                        "comparisons": ["price_above", "price_below"],
+                    },
+                    "ichimoku_chikou_26": {
+                        "id": "ichimoku_chikou_26",
+                        "label": "Chikou Span (26)",
+                        "description": "Lagging Span — close shifted 26 bars back. Confirms trend when above/below price.",
+                        "params": [],
+                        "outputs": [{"name": "value", "label": "Chikou value"}],
+                        "ops": ["gt", "gte", "lt", "lte"],
                         "comparisons": ["price_above", "price_below"],
                     },
                 },
@@ -711,6 +789,27 @@ CONDITION_REGISTRY = {
             },
         },
     },
+    "custom": {
+        "id": "custom",
+        "label": "Custom Indicators",
+        "description": "AI-generated, research-catalog, and user-defined custom indicators and patterns",
+        "icon": "🧩",
+        "is_custom": True,
+        "subcategories": {
+            "custom_indicators": {
+                "id": "custom_indicators",
+                "label": "Custom",
+                "description": "Custom indicators loaded from custom_types/ and AI-generated definitions",
+                "indicators": {},
+            },
+            "custom_candles": {
+                "id": "custom_candles",
+                "label": "CDL Patterns (Custom)",
+                "description": "Extended candlestick pattern library from TA-Lib catalog",
+                "indicators": {},
+            },
+        },
+    },
     "price_actions": {
         "id": "price_actions",
         "label": "Price Action",
@@ -832,6 +931,44 @@ def flatten_registry():
 
 FLAT_REGISTRY = flatten_registry()
 
+# Extend with custom types (catalog + AI-generated)
+for _ce in _CUSTOM_ENTRIES:
+    # Avoid duplicate ids
+    if not any(e["id"] == _ce["id"] for e in FLAT_REGISTRY):
+        _ce["is_custom"] = True
+        FLAT_REGISTRY.append(_ce)
+
+# Populate CONDITION_REGISTRY custom subcategories so the browser shows them
+if _CUSTOM_ENTRIES:
+    custom_cat = CONDITION_REGISTRY.get("custom", {})
+    custom_inds_sub = custom_cat.get("subcategories", {}).get("custom_indicators", {})
+    custom_cdl_sub = custom_cat.get("subcategories", {}).get("custom_candles", {})
+    if custom_inds_sub is not None:
+        for _ce in _CUSTOM_ENTRIES:
+            ce_cat = _ce.get("category_label", "").lower()
+            if "cdl" in ce_cat or "candle" in ce_cat or "pattern" in ce_cat:
+                if custom_cdl_sub is not None:
+                    custom_cdl_sub.setdefault("indicators", {})[_ce["id"]] = {
+                        "id": _ce["id"],
+                        "label": _ce.get("label", _ce["id"]),
+                        "description": _ce.get("description", ""),
+                        "is_custom": True,
+                        "params": _ce.get("params", []),
+                        "outputs": _ce.get("outputs", []),
+                        "ops": _ce.get("ops", ["gt", "gte", "lt", "lte"]),
+                    }
+            else:
+                if custom_inds_sub is not None:
+                    custom_inds_sub.setdefault("indicators", {})[_ce["id"]] = {
+                        "id": _ce["id"],
+                        "label": _ce.get("label", _ce["id"]),
+                        "description": _ce.get("description", ""),
+                        "is_custom": True,
+                        "params": _ce.get("params", []),
+                        "outputs": _ce.get("outputs", []),
+                        "ops": _ce.get("ops", ["gt", "gte", "lt", "lte"]),
+                    }
+
 
 def search_conditions(query: str, max_results: int = 10) -> list[dict]:
     """Fuzzy-search the condition registry by id, label, description, or category."""
@@ -864,11 +1001,35 @@ def search_conditions(query: str, max_results: int = 10) -> list[dict]:
         elif any(query in part for part in entry["id"].lower().split("_")):
             score = 20
         # Param name match (e.g. "period" matches anything with a period param)
-        elif any(query in p["label"].lower() for p in entry.get("params", [])):
+        elif any(query in p.get("label", p.get("name", "")).lower() for p in entry.get("params", [])):
             score = 10
 
         if score > 0:
             scored.append((score, entry))
 
     scored.sort(key=lambda x: -x[0])
-    return [s[1] for s in scored[:max_results]]
+    results = [s[1] for s in scored[:max_results]]
+
+    # Also search custom condition templates if few results
+    if len(results) < max_results:
+        custom_results = search_custom_conditions(query, max_results - len(results))
+        # Add template refs
+        for tmpl in custom_results:
+            results.append({
+                "id": "template:" + tmpl["id"],
+                "label": "📋 " + tmpl.get("label", tmpl["id"]),
+                "description": tmpl.get("description", ""),
+                "category": "custom_templates",
+                "category_label": "🧩 Custom Templates",
+                "subcategory": "custom_templates",
+                "subcategory_label": "AI Condition Templates",
+                "type": "condition_template",
+                "template": tmpl.get("template", {}),
+                "params": [],
+                "outputs": [],
+                "ops": [],
+                "is_custom": True,
+                "origin": "condition_template",
+            })
+
+    return results

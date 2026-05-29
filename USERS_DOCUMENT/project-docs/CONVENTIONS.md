@@ -25,9 +25,9 @@ candle-analytics/
 
 | Screen | Command | Must restart after code change? |
 |--------|---------|-------------------------------|
-| candle | `uvicorn api.main:app --port 8001` | YES |
-| agent | `python3 api/agent.py` | NO (polls files) |
-| vibe-agent | `python3 api/vibe_agent.py` | NO (polls files) |
+| candle | `.venv/bin/uvicorn api.main:app --port 8001` | YES |
+| agent | `.venv/bin/python api/agent.py` | NO (polls files) |
+| vibe-agent | `.venv/bin/python api/vibe_agent.py` | NO (polls files) |
 
 Restart ALL 3 on new session start (session-lifecycle skill step 3).
 

@@ -1,0 +1,262 @@
+{
+  "orders": [
+    {
+      "type": "stop_market",
+      "metric": "rsi_14",
+      "op": "gt",
+      "value": 35,
+      "size": 1,
+      "size_type": "percent",
+      "side": "long"
+    },
+    {
+      "type": "stop_market",
+      "metric": "rsi_14",
+      "op": "lt",
+      "value": 65,
+      "size": 1,
+      "size_type": "percent",
+      "side": "short"
+    }
+  ],
+  "indicators": [
+    {
+      "name": "rsi_14",
+      "type": "ta.RSI",
+      "params": {
+        "timeperiod": 14
+      }
+    },
+    {
+      "name": "sma20",
+      "type": "sma",
+      "params": {
+        "length": 20
+      }
+    },
+    {
+      "name": "sma50",
+      "type": "sma",
+      "params": {
+        "length": 50
+      }
+    },
+    {
+      "id": "RSI",
+      "args": {
+        "period": 14
+      },
+      "output": "rsi_14"
+    },
+    {
+      "id": "Ichimoku",
+      "args": {
+        "tenkan_period": 9,
+        "kijun_period": 26,
+        "senkou_span_period": 52
+      },
+      "output": [
+        "ichi_tenkan",
+        "ichi_kijun",
+        "ichi_senkou_a",
+        "ichi_senkou_b",
+        "ichi_chikou"
+      ]
+    },
+    {
+      "id": "RSI",
+      "args": {
+        "period": 14
+      },
+      "output": "rsi_14"
+    },
+    {
+      "id": "RSI",
+      "args": {
+        "period": 14
+      },
+      "output": "rsi_14"
+    },
+    {
+      "id": "Ichimoku",
+      "args": {
+        "tenkan_period": 9,
+        "kijun_period": 26,
+        "senkou_span_period": 52
+      },
+      "output": [
+        "ichi_tenkan",
+        "ichi_kijun",
+        "ichi_senkou_a",
+        "ichi_senkou_b",
+        "ichi_chikou"
+      ]
+    },
+    {
+      "name": "sma_20",
+      "type": "sma",
+      "params": {
+        "window": 20
+      }
+    },
+    {
+      "name": "sma_50",
+      "type": "sma",
+      "params": {
+        "window": 50
+      }
+    },
+    {
+      "name": "ichimoku",
+      "type": "ichimoku",
+      "params": {
+        "tenkan_period": 9,
+        "kijun_period": 26,
+        "senkou_a": true,
+        "senkou_b": true,
+        "chikou": true
+      }
+    },
+    {
+      "name": "ichimoku",
+      "type": "ichimoku",
+      "params": {
+        "tenkan_period": 9,
+        "kijun_period": 26,
+        "senkou_a": true,
+        "senkou_b": true,
+        "chikou": true
+      }
+    },
+    {
+      "name": "ichimoku",
+      "type": "ichimoku",
+      "params": {
+        "tenkan_period": 9,
+        "kijun_period": 26,
+        "senkou_a": true,
+        "senkou_b": true,
+        "chikou": true
+      }
+    },
+    {
+      "name": "rsi_14",
+      "type": "rsi",
+      "params": {
+        "period": 14
+      }
+    },
+    {
+      "name": "sma20",
+      "type": "sma",
+      "params": {
+        "period": 20
+      }
+    },
+    {
+      "name": "sma50",
+      "type": "sma",
+      "params": {
+        "period": 50
+      }
+    },
+    {
+      "name": "sma20",
+      "type": "sma",
+      "params": {
+        "period": 20
+      }
+    },
+    {
+      "name": "sma50",
+      "type": "sma",
+      "params": {
+        "period": 50
+      }
+    },
+    {
+      "name": "sma20",
+      "type": "sma",
+      "params": {
+        "period": 20
+      }
+    },
+    {
+      "name": "sma50",
+      "type": "sma",
+      "params": {
+        "period": 50
+      }
+    },
+    {
+      "name": "sma20",
+      "type": "sma",
+      "params": {
+        "period": 20
+      }
+    },
+    {
+      "name": "sma50",
+      "type": "sma",
+      "params": {
+        "period": 50
+      }
+    },
+    "ichimoku_tenkan",
+    "ichimoku_kijun",
+    "ichimoku_senkou_a",
+    "ichimoku_senkou_b",
+    "ichimoku_chikou",
+    "ichimoku_tenkan",
+    "ichimoku_kijun",
+    "ichimoku_senkou_a",
+    "ichimoku_senkou_b",
+    "ichimoku_chikou",
+    "ichimoku",
+    "ichimoku",
+    "ichimoku",
+    "ichimoku",
+    "ichimoku",
+    "sma",
+    "ichimoku",
+    "ichimoku",
+    "ichimoku",
+    "sma",
+    "sma20",
+    "sma50",
+    {
+      "name": "rsi_14",
+      "type": "ta",
+      "params": {
+        "period": 14
+      }
+    },
+    {
+      "name": "rsi_14",
+      "type": "ta",
+      "params": {
+        "period": 14
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "name": "sma20_above_sma50",
+      "type": "cross_condition",
+      "params": {
+        "source1": "sma20",
+        "source2": "sma50",
+        "direction": "up"
+      }
+    },
+    {
+      "name": "sma20_below_sma50",
+      "type": "cross_condition",
+      "params": {
+        "source1": "sma20",
+        "source2": "sma50",
+        "direction": "down"
+      }
+    }
+  ]
+}

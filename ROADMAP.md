@@ -55,186 +55,59 @@ Phase 4 ── Advanced Data + ML ───── 🔮 Future
 
 | Domain | Features |
 |--------|----------|
-| **Data layer** | Binance client, Hyperliquid client, SQLite storage, CSV export, WebSocket real-time, Docker deployment |
+| **Data layer** | Binance client, Hyperliquid client, SQLite storage, CSV export, WebSocket real-time |
 | **API** | REST (candles, pairs, fetch, events), SSE for live updates, /api/candles/count |
 | **Dashboard** | Candlestick chart, volume histogram, auto-scale, regression line, SSE live updates |
 | **Metrics** | 7 OHLC metrics pre-computed at insert time, percentiles pre-computed in DB |
-| **Chart families** | 6 families (Distribution, Time Series, Correlation, Percentile, Pattern, Overlay), 23+ chart types, per-family params, info tooltips |
-| **Caching** | sessionStorage cache, in-memory cache, /api/candles/count lightweight check, background data prefetch |
+| **Chart families** | 6 families (Distribution, Time Series, Correlation, Percentile, Pattern, Overlay), 23+ chart types |
+| **Caching** | sessionStorage cache, in-memory cache, /api/candles/count lightweight check |
 | **RAW DATA** | Paginated table (100 rows), sortable columns, column filters, percentile display |
-| **Infra** | auto-export plugin with stats tracking, session-lifecycle skill, synthesis command, session audit |
-| **Git** | SSH remote, auto-push on session export |
+| **Infra** | auto-export plugin, session-lifecycle skill, synthesis command, session audit |
 
 ### Phase 2 : Strategy Research 🟢
 
-- [ ] **UI/UX refresh** — l'interface est fonctionnelle mais mérite un redesign complet (css, layout, typographie, couleurs)
-- [x] **Strategy Lab page** — FastAPI route `/strategy-lab`, 3-part SPA (Chat / Parameters / Results)
-- [x] **Conversational AI strategy design** — chat interface that guides user step by step:
-  - User describes strategy in natural language
-  - Guiding phases: MARCHÉ → CONDITIONS → SORTIE → RISQUE
-  - Validates contradictions, flags questionable assumptions
-  - Generates structured config → populates editable Parameters panel
-- [x] **Strategy-designer skill** — `~/.config/opencode/skills/strategy-designer/SKILL.md`
-  - 5-phase conversation flow with validation rules
-  - File-bridge communication: `/tmp/strategy_chat_req_*.json` / `res_*.json`
-- [x] **LLM agent service** — `api/agent.py` + Groq `llama-3.3-70b-versatile`:
-  - Watches request files, calls local LLM, writes responses back
-  - Injects strategy-designer skill as system prompt
-  - Reads chat log for multi-turn context
-  - Runs in dedicated `screen -dmS agent` session
-- [x] **WebSocket bridge** — `/api/ws/strategy-chat` for real-time chat between Lab and OpenCode
-- [x] **HTTP fallback** — `POST /api/edge/chat` + polling `GET /api/edge/chat/{id}` if WS unavailable
-- [x] **Metric filter builder** (AI-populated + manually editable) — conditions with AND/OR/group logic
-- [x] **Intelligent occurrence search** — `/api/edge/search` backend:
-  - Scans all bars matching filter conditions
-  - Measures forward return (N bars ahead)
-  - Returns win rate, avg return, Sharpe, distribution
-  - Filters by minimum occurrences, time range, pair
-- [x] **Edge browser** — grid/card view toggle, sort by win rate / Sharpe / occurrence
-- [x] **Vibe Lab** — AI strategy generation from natural language
-  - Rust engine (vibe_engine): RSI, SMA, EMA, BBANDS, ATR, MACD, Stochastique, VWAP, ADX, CCI, MFI, Williams %R, OBV
-  - LLM code generation (Groq/Qwen) with templates fallback
-  - Sandbox execution with position tracking, equity curve, metrics
-  - Strategy validator (syntax, security, required functions)
-  - LLM analysis (score 1-10, strengths, weaknesses, recommendations)
-- [x] **Backtesting engine** — sandbox-based vectorized backtest from generated code
-  - Entry/exit via decide() signal function
-  - SL/TP via backtest engine (Rust)
-  - Metrics: win rate, profit factor, max drawdown, Sharpe, Sortino, Calmar
-- [x] **Parameter sweep** — grid search over condition thresholds + lookahead values
+- [x] **Strategy Lab page** — FastAPI route `/strategy-lab`, 3-part SPA
+- [x] **Conversational AI strategy design** — chat interface with guiding phases
+- [x] **Strategy-designer skill** — 5-phase conversation flow with file-bridge
+- [x] **LLM agent service** — Groq qwen model, file bridge IPC
+- [x] **HTTP fallback** — POST `/api/edge/chat` + polling
+- [x] **Metric filter builder + condition interpret API**
+- [x] **Edge browser** — grid/card view, sort by win rate / Sharpe / occurrence
+- [x] **Vibe Lab** — AI strategy generation, Rust engine, sandbox, validation
+- [x] **Backtesting engine** — sandbox-based vectorized backtest
+- [x] **Parameter sweep** — grid search over condition thresholds
 - [x] **Walk-forward validation** — train/test split, rolling N windows
 - [x] **Monte Carlo shuffle** — p-value for win rate and avg return
-- [x] **Export edge** — YAML (reimportable), JSON, CSV (forward returns)
-- [x] **Vibe Lab Tab 1 — Chat interface** — WebSocket bridge + HTTP fallback + standalone vibe agent (Groq/Qwen code gen)
-- [x] **Vibe Lab chat populates Tab 2 + 3** — `code_generated` responses trigger `receiveGeneratedCode()` → switch to Code tab; Backtest populates Results
-- [x] **TA indicator support** — 18 indicators (RSI, SMA, EMA, BBANDS, ATR, MACD, Stochastique, VWAP, ADX, CCI, MFI, Williams %R, OBV) computed server-side via Rust engine
-- [x] **Condition interpret endpoint** — `/api/conditions/interpret` parses free-text condition strings (e.g. "rsi(14) < 30") with regex + AI fallback
-- [x] **Engine Search Group UI** — collapsible section with LA, MinOcc, MC Shuffles, Walk-Forward, train/test date range, sweep toggle
-- [x] **RunSearch auto-mode** — `getSearchConfig` auto-includes `walk_forward` and `monte_carlo_shuffles` in every search request
-- [ ] **Multi-pair / multi-exchange selection** — combine datasets (e.g. Binance BTC 1H + Hyperliquid PAXG 1D)
+- [x] **Export edge** — YAML/JSON/CSV
+- [x] **TA indicator overlay** — 13 indicators computed server-side, rendered on LightweightCharts
+- [x] **Indicator customization panel** — color, period, line width per indicator
+- [x] **Separate pane for oscillators** — RSI, MACD, Stoch etc. in own pane via `chart.addPane()`
+- [x] **Runs on `.venv/bin/python`** — tous les processus screen utilisent le venv
+- [x] **WebSocket fix** — `wsproto` installé, `/api/ws/strategy-chat` fonctionne
+- [x] **GROQ 429 retry** — 3 tentatives avec backoff dans agent.py
+- [x] **GROQ_KEY via .env** — load_dotenv() dans agent.py et vibe_agent.py
+- [x] **Docker multi-stage** — Rust + Python build, 4 services (api, stream, agent, vibe-agent)
+- [x] **Multi-pair / multi-exchange selection** — combine datasets (e.g. Binance BTC + Hyperliquid PAXG)
+- [x] **Strategy LLM auto-test** — validator + fixer 100% locaux, boucle 3 prompts, prompt split en 7 catégories
+- [x] **Fix 400 Groq** — `response_format` json avec suffix "Respond with valid JSON."
+- [x] **Fix type→config_update** — fixer local convertit message en config_update
+- [x] **Ichimoku aliases étendus** — 30+ entrées (japonais, descriptifs, dotted, numériques)
+- [ ] **Fix data.win_rate is undefined** — crash quand Run Search retourne résultats sans win_rate
 
 ### Phase 3 : Live Trading 🔵
 
-- [ ] **In-process LLM integration** — move agent logic from file bridge to direct FastAPI integration (lower latency, no polling)
-- [ ] **Model upgrade** — evaluate 13B+ models for more nuanced strategy conversations
-- [ ] **Adaptive fetch rate**:
-  | Timeframe | Update |
-  |---|---|
-  | 1m, 5m, 15m, 30m | WebSocket (every tick) |
-  | 1H, 2H, 4H, 6H, 12H | HTTP poll every 1 min |
-  | 1D, 1W, 1M | HTTP poll every 5 min |
+- [ ] **In-process LLM integration** — move agent logic from file bridge to direct FastAPI integration
+- [ ] **Model upgrade** — evaluate 13B+ models
+- [ ] **Adaptive fetch rate** per timeframe
 - [ ] **Paper trading engine** — simulated execution with configurable fees/slippage
 - [ ] **Kill switch** — max drawdown / daily loss / Sharpe collapse detection
-- [ ] **Alerts** — Telegram / email when edge triggers or kill switch trips
+- [ ] **Alerts** — Telegram / email
 - [ ] **Position tracker** — open positions, P&L, trade history
-- [ ] **Live performance dashboard** — equity curve, drawdown, win rate tracker
-- [ ] **Multi-strategy portfolio** — run multiple edges simultaneously, shared capital
+- [ ] **Live performance dashboard** — equity curve, drawdown, win rate
+- [ ] **Multi-strategy portfolio** — run multiple edges simultaneously
 
 ### Phase 4 : Advanced Data + ML 🔮
 
-- [ ] **Onchain data integration** — whale transfers, exchange flows, interest rates
-- [ ] **Orderbook data** — cumulative depth, bid/ask imbalance, order flow imbalance
-- [ ] **Funding rates + open interest** — derivatives market sentiment
-- [ ] **335+ technical indicators** — integrate from [quant-ohlcv-feature](https://github.com/YuxinSUN89/quant-ohlcv-feature)
-- [ ] **Feature engineering pipeline** — 77+ stationary ML-ready features (per asset, per TF)
-- [ ] **ML-based edge detection** — regime classification, anomaly detection, predictive models
-- [ ] **LLM-powered edge discovery** — describe strategy in natural language → generate + validate (inspired by [AlphaEvo](https://github.com/ZhuLinsen/alphaevo), [VibeTrading](https://github.com/VibeTradingLabs/vibetrading))
-- [ ] **Cross-pair correlation** — leading indicator discovery across pairs/TFs
-- [ ] **Hedge finder** — statistical arbitrage, cointegrated pairs
-
----
-
-## Tasks by Phase
-
-### Phase 1 (✅ Done — 40+ items completed)
-All items listed in the [Done section of previous versions](./CHRONOLOGIE.md).
-
-### Phase 2 (🟢 To Do)
-- [x] Strategy Lab page (3-part SPA: Chat / Parameters / Results)
-- [x] Conversational AI strategy design (chat + skill)
-- [x] Strategy-designer skill (5-phase guided conversation)
-- [x] LLM agent service (Groq llama-3.3-70b via API, file bridge, multi-turn)
-- [x] WebSocket bridge `/api/ws/strategy-chat`
-- [x] HTTP fallback for chat (POST + polling)
-- [x] Metric filter builder (AI-populated + editable)
-- [x] /api/edge/search endpoint
-- [x] Edge browser (grid/card view)
-- [x] Parameter sweep (grid search)
-- [x] Walk-forward validation
-- [x] Monte Carlo shuffle
-- [x] Export edge (YAML/JSON/CSV)
-- [x] Backtesting engine integration
-- [x] TA indicator support (18 indicators via Rust engine + Python bindings)
-- [x] Condition interpret API (`/api/conditions/interpret`)
-- [x] Frontend condition input (`metric(period) op value` format with params serialization)
-- [x] Engine Search Group UI (Walk-Forward, MC, Sweep, date range)
-- [x] RunSearch auto-mode (WF + MC auto-included)
-- [x] **Indicator Browser modal** — `GET /api/conditions/catalog` + modal avec hiérarchie catégories/sous-catégories/indicateurs/métriques
-- [x] **On-the-fly indicator computation** — `_INDICATOR_FUNCS` + fallback on-demand pour indicateurs custom non pré-calculés
-- [x] **AI ✨ suggestion buttons** — `POST /api/edge/suggest` + popover sur chaque input libre (12 champs)
-- [x] **Condition validation** — `_validate_conditions()` dans `_run_single_search()` vérifie métriques vs `FLAT_REGISTRY`
-- [ ] Multi-pair / multi-exchange selection
-
-### Phase 3 (🔵 Planned)
-- [ ] In-process LLM integration (direct FastAPI, no bridge)
-- [ ] Model upgrade (13B+)
-- [ ] Adaptive fetch rate system
-- [ ] Paper trading engine
-- [ ] Kill switch (drawdown / daily loss / Sharpe)
-- [ ] Alerts (Telegram / email)
-- [ ] Position tracker
-- [ ] Live performance dashboard
-- [ ] Multi-strategy portfolio
-
-### 🧹 Phase Cleanup — Session de nettoyage, audit et amélioration générale
-
-> Objectif : remettre le projet en état de marche sain avant d'attaquer Phase 3.
-
-#### Audit code
-- [ ] **ES5 scan** — vérifier qu'aucun `const`/`let`/`?.`/`for...of`/`NodeList.forEach` ne subsiste dans `strategy_lab.py` et `vibe_lab.py`
-- [x] **Python escape audit** — automatisé via `scripts/check-pyjs-quotes.sh` + skill `pyjs-quote-debug`
-- [ ] **Dead code removal** — `grep` des fonctions JS/Python non appelées, imports inutilisés
-- [ ] **Error handling** — vérifier que toutes les routes API et tous les `fetch()` frontend ont des `.catch()` / `try-except`
-- [ ] **Shadowed builtins** — `all`, `type`, `id`, `input`, `filter`, `map`, `open` etc. utilisés comme noms de variables
-
-#### UI/UX
-- [ ] **CSS audit** — supprimer les règles dupliquées/inutilisées, unifier les couleurs/variables CSS
-- [ ] **Responsive** — tester les deux labs sur écran < 1024px, corriger les débordements
-- [ ] **Loading states** — tous les boutons doivent montrer un état "loading" pendant les appels API
-- [ ] **Notification system** — remplacer les `status.textContent` ad-hoc par un système de notification unifié
-- [ ] **Tooltips** — vérifier que tous les champs de config ont des `title` explicatifs
-
-#### Architecture
-- [ ] **Agent monitoring** — script `healthcheck.sh` qui vérifie les 3 processus et les restart si morts
-- [ ] **IPC cleanup** — cron/nettoyage automatique des `/tmp/strategy_chat_*` et `/tmp/vibe_chat_*` > 5 min
-- [ ] **Logging** — remplacer les `print()` et `append_log()` par un vrai logger structuré
-- [ ] **Config validation** — Pydantic models pour la config de stratégie (validation au lieu de JS-only)
-
-#### Testing
-- [ ] **Smoke tests** — script qui appelle tous les endpoints API et vérifie HTTP 200
-- [ ] **WS health** — test automatisé de connexion WebSocket
-- [ ] **Manual test checklist** — document avec la procédure de test complète
-
-#### Skills & Tools
-- [x] **github-backup skill** — backup GitHub automatisé (`.opencode/skills/github-backup/`)
-- [x] **subagent-cache skill** + `scripts/cache-subagent.sh` — cache timestampé des résultats sub-agent
-- [x] **pyjs-quote-debug skill** + `scripts/check-pyjs-quotes.sh` — détection bugs quoting Python→JS
-- [x] **Pre-commit hook amélioré** — utilise `scripts/check-pyjs-quotes.sh` au lieu du naive `const` grep
-- [x] **GROQ API vérifié** — agent répond correctement (testé avec requête réelle → config_update reçue)
-- [x] **JS SyntaxError fixé** — 3 onclick handlers dans strategy_lab.py (selectCatalogCategory + 2×addFromCatalog)
-
-#### Sécurité (external sources)
-- [x] **Documenté dans AGENTS.md** — procédure d'analyse de sécurité pour repos/scripts externes
-- [x] **Outils recommandés** — OpenSSF Scorecard, Trivy, Semgrep, Bandit (avec classement)
-- [ ] **Installer et configurer** — ajouter au CI/CD ou pre-commit (optionnel)
-
-#### Documentation
-- [ ] **README.md** — setup, architecture, commandes utiles
-- [ ] **API reference** — lister tous les endpoints avec leur méthode, paramètres, réponses
-- [ ] **Agent diagram** — schéma ascii de l'architecture agent/file-bridge/WS
-- [x] **Per-page docs** — 4 pages détaillées dans `USERS_DOCUMENT/project-docs/pages/`
-
-### Phase 4 (🔮 Future)
 - [ ] Onchain data (whales, exchange flows)
 - [ ] Orderbook data (depth, imbalance)
 - [ ] Funding rates + OI
@@ -247,22 +120,83 @@ All items listed in the [Done section of previous versions](./CHRONOLOGIE.md).
 
 ---
 
+## Tasks by Phase
+
+### Phase 1 (✅ Done)
+All items listed in CHRONOLOGIE.md.
+
+### Phase 2 (🟢 Status)
+- [x] Strategy Lab SPA
+- [x] Conversational AI + skill
+- [x] Strategy-designer skill
+- [x] LLM agent service (Groq, file bridge, multi-turn)
+- [x] WebSocket bridge `/api/ws/strategy-chat`
+- [x] HTTP fallback
+- [x] Metric filter builder
+- [x] /api/edge/search endpoint
+- [x] Edge browser
+- [x] Parameter sweep
+- [x] Walk-forward validation
+- [x] Monte Carlo shuffle
+- [x] Export edge (YAML/JSON/CSV)
+- [x] Backtesting engine
+- [x] TA indicator support (13 indicators, Rust engine, Python bindings)
+- [x] Indicator overlay on LightweightCharts (separate pane for oscillators)
+- [x] Custom types registry + AI persistence
+- [x] Rust state machine for custom orders
+- [x] Server lifecycle skill
+- [x] Chat smoke test tool + skill
+- [x] Docker multi-stage build (Rust + Python)
+- [x] All processes use .venv/bin/python
+- [x] GROQ retry + .env loading fixes
+- [x] wsproto for WebSocket support
+- [ ] Multi-pair / multi-exchange selection
+
+### 🧹 Phase Cleanup
+
+- [x] ES5 scan
+- [x] Python escape audit (pyjs-quote-debug)
+- [x] Dead code removed
+- [x] Error handling — routes API + fetch .catch() vérifiés
+- [x] JS quoting bugs fixed (showIndMenu event delegation)
+- [x] indicator response candles bug fixed
+- [ ] CSS audit — duplicate rules, unify variables
+- [ ] Responsive <1024px
+- [ ] Unified notification system
+- [ ] Proper logging (structured, replace print/append_log)
+- [ ] README.md
+
+### Phase 3 (🔵 Planned)
+- [ ] In-process LLM integration
+- [ ] Adaptive fetch rate system
+- [ ] Paper trading engine
+- [ ] Kill switch
+- [ ] Alerts
+- [ ] Position tracker
+- [ ] Live performance dashboard
+- [ ] Multi-strategy portfolio
+
+### Phase 4 (🔮 Future)
+- [ ] Onchain data integration
+- [ ] Orderbook data
+- [ ] Funding rates + OI
+- [ ] 335+ technical indicators
+- [ ] ML feature pipeline
+- [ ] ML edge detection
+- [ ] LLM-powered edge discovery
+- [ ] Cross-pair correlation
+- [ ] Hedge finder
+
+---
+
 ## Similar Projects — Inspiration
 
 | Project | Stars | What to borrow |
 |---------|-------|----------------|
-| [**vectorbt**](https://github.com/polakowo/vectorbt) | 7.5K | Matrix-based backtesting — run N configs in parallel |
-| [**Jesse**](https://github.com/jesse-ai/jesse) | 5.5K | Multi-TF/symbol architecture, Monte Carlo, ML pipeline |
-| [**VibeTrading**](https://github.com/VibeTradingLabs/vibetrading) | 1.4K | AI agent strategy generation → backtest → deploy |
-| [**quant-ohlcv-feature**](https://github.com/YuxinSUN89/quant-ohlcv-feature) | — | 335+ academic features from OHLCV for Phase 4 |
-| [**ta_lab2**](https://github.com/adammsafi/ta_lab2) | — | 109-TF feature engineering, IC-based evaluation |
-| [**HedgeVision**](https://github.com/ayush108108/hedgevision) | — | Statistical arbitrage UI, cointegration screener |
-| [**AlphaEvo**](https://github.com/ZhuLinsen/alphaevo) | 29 | Self-evolving LLM strategies — "diagnose → mutate → retest" |
-| [**SignalFlow**](https://github.com/pathway2nothing/signalflow-trading) | 2 | Visual DAG editor for strategy pipelines |
-| [**manifoldbt**](https://github.com/Jimmy7892/manifoldbt) | 3 | Rust backtesting — 161× faster than vectorbt |
-| [**TradrLab**](https://tradrlab.com/) | — | AI Scenario Assistant — describe idea, get matches |
-| [**NexQuant**](https://github.com/TPTBusiness/NexQuant) | 3 | Autonomous AI agent for quant strategy research |
-| [**Kainex**](https://github.com/francismiko/kainex) | — | Multi-market, React + FastAPI, clean UI |
+| [**vectorbt**](https://github.com/polakowo/vectorbt) | 7.5K | Matrix-based backtesting |
+| [**Jesse**](https://github.com/jesse-ai/jesse) | 5.5K | Multi-TF/symbol architecture |
+| [**manifoldbt**](https://github.com/Jimmy7892/manifoldbt) | 3 | Rust backtesting — 161× faster |
+| [**AlphaEvo**](https://github.com/ZhuLinsen/alphaevo) | 29 | Self-evolving LLM strategies |
 
 ---
 

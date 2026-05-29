@@ -112,6 +112,9 @@ h3 { font-size: 12px; color: #888; margin: 10px 0 6px; }
 .chat-input-row .btn-wrap .btn-send { background: #e94560; color: #fff; border: none; padding: 10px 22px; border-radius: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; font-weight: 500; }
 .chat-input-row .btn-wrap .btn-send:hover { background: #d63851; }
 .chat-input-row .btn-wrap .btn-send:disabled { opacity: .5; cursor: not-allowed; }
+.template-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; margin-bottom: 2px; }
+.template-btn { background: #0f3460; color: #8ab4f8; border: 1px solid #1a3a6b; padding: 4px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.template-btn:hover { background: #1a3a6b; color: #e0e0e0; border-color: #e94560; }
 .chat-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 2px; }
 .chat-footer .chat-hint { font-size: 10px; color: #555; }
 .chat-footer .chat-actions { display: flex; gap: 6px; }
@@ -148,6 +151,7 @@ h3 { font-size: 12px; color: #888; margin: 10px 0 6px; }
 
 /* ── Part 2: Strategy Config ── */
 #paramsSection { display: none; }
+#paramsEngineSection { display: none; }
 .strat-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; padding: 8px; background: #0d1b2a; border: 1px solid #0f3460; border-radius: 4px; }
 .strat-name-input { background: transparent; color: #e0e0e0; border: none; font-size: 15px; font-weight: 600; padding: 2px 6px; min-width: 160px; flex: 1; }
 .strat-name-input:focus { outline: none; border-bottom: 1px solid #e94560; }
@@ -374,6 +378,13 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
         <button class="btn-send" onclick="sendChatMessage()">Send</button>
       </div>
     </div>
+    <div class="template-row">
+      <button class="template-btn" onclick="applyTemplate('ichimoku_long')">🌊 Ichimoku Long</button>
+      <button class="template-btn" onclick="applyTemplate('ichimoku_short')">🌊 Ichimoku Short</button>
+      <button class="template-btn" onclick="applyTemplate('sma_crossover')">📈 SMA Crossover</button>
+      <button class="template-btn" onclick="applyTemplate('rsi_oversold')">📉 RSI Oversold</button>
+      <button class="template-btn" onclick="applyTemplate('bb_mean_rev')">📊 BB Mean Rev</button>
+    </div>
     <div class="chat-footer">
       <div class="chat-hint">Enter to send · Shift+Enter for newline</div>
     </div>
@@ -407,10 +418,32 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
     </select>
   </div>
 
-  <!-- ── Engine Search Group ── -->
+  <div id="tradeArea" class="trade-area">
+    <div class="direction-column full-width-col" id="longColumn">
+      <div class="col-header">LONG</div>
+      <div id="longTrades"></div>
+      <button class="btn btn-sm" onclick="addTrade('long')">+ Trade</button>
+    </div>
+    <div class="direction-column hidden" id="shortColumn">
+      <div class="col-header">SHORT</div>
+      <div id="shortTrades"></div>
+      <button class="btn btn-sm" onclick="addTrade('short')">+ Trade</button>
+    </div>
+  </div>
+  <div class="controls" style="margin-top:10px">
+    <button class="btn btn-primary" onclick="runSearch()">&#9654; Run Search</button>
+    <button class="btn" onclick="saveStrategy()">&#128190; Save</button>
+    <button class="btn" onclick="exportConfigJSON()">&#128196; Export JSON</button>
+    <button class="btn" onclick="loadStrategy()">&#128218; Load</button>
+    <button class="btn" onclick="clearConfig()">Clear</button>
+  </div>
+</div>
+
+<!-- ── ENGINE SEARCH ── -->
+<div id="paramsEngineSection" class="section">
   <div id="engineGroup" class="engine-group">
     <div class="engine-group-header" onclick="toggleEngineGroup()">
-      <span>⚙️ Engine Search Group</span>
+      <span>⚙️ Engine Search</span>
       <span class="engine-toggle" id="engineToggle">▼</span>
     </div>
     <div id="engineGroupBody" class="engine-group-body">
@@ -467,26 +500,6 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
       </div>
       <div class="engine-note" title="Monte Carlo, Walk-Forward, and Sweep run automatically on every search">💡 Auto-mode enabled — MC, WF, and Sweep run automatically on every search</div>
     </div>
-  </div>
-
-  <div id="tradeArea" class="trade-area">
-    <div class="direction-column full-width-col" id="longColumn">
-      <div class="col-header">LONG</div>
-      <div id="longTrades"></div>
-      <button class="btn btn-sm" onclick="addTrade('long')">+ Trade</button>
-    </div>
-    <div class="direction-column hidden" id="shortColumn">
-      <div class="col-header">SHORT</div>
-      <div id="shortTrades"></div>
-      <button class="btn btn-sm" onclick="addTrade('short')">+ Trade</button>
-    </div>
-  </div>
-  <div class="controls" style="margin-top:10px">
-    <button class="btn btn-primary" onclick="runSearch()">&#9654; Run Search</button>
-    <button class="btn" onclick="saveStrategy()">&#128190; Save</button>
-    <button class="btn" onclick="exportConfigJSON()">&#128196; Export JSON</button>
-    <button class="btn" onclick="loadStrategy()">&#128218; Load</button>
-    <button class="btn" onclick="clearConfig()">Clear</button>
   </div>
 </div>
 
@@ -648,10 +661,17 @@ function handleWSMessage(data) {
     if (_pendingChatTimeout) clearTimeout(_pendingChatTimeout);
     _pendingChatTimeout = setTimeout(function () {
       if (_pendingId) {
-        addChatMessage('system', 'Still waiting...');
+        addChatMessage('system', "Toujours en attente... L'IA peut prendre 30-60s pour les strategies complexes");
         document.getElementById('typingIndicator').classList.add('hidden');
       }
     }, 12000);
+    return;
+  }
+
+  if (data.type === 'status') {
+    if (_pendingId == data.id) {
+      addChatMessage('system', data.content || '⏳ Traitement en cours...');
+    }
     return;
   }
 
@@ -671,9 +691,22 @@ function handleWSMessage(data) {
     return;
   }
 
-  if (data.type === 'response' || data.type === 'message' || data.type === 'config_update') {
+  if (data.type === 'config_update') {
     if (_pendingChatTimeout) { clearTimeout(_pendingChatTimeout); _pendingChatTimeout = null; }
-    var isConfig = data.type === 'config_update';
+    var cfg = data.response || data;
+    renderConfig(cfg);
+    addChatMessage('system', '✓ Stratégie chargée — paramètres prêts dans le panneau de configuration');
+    if (data.ready && hasCloseConditions(cfg)) {
+      showStrategyActions();
+    }
+    _pendingId = null;
+    return;
+  }
+
+  if (data.type === 'response' || data.type === 'message') {
+    if (_pendingChatTimeout) { clearTimeout(_pendingChatTimeout); _pendingChatTimeout = null; }
+    var origType = data._original_type || data.type;
+    var isConfig = origType === 'config_update';
     if (data.content && !isConfig) {
       addChatMessage('ai', data.content);
     }
@@ -684,7 +717,12 @@ function handleWSMessage(data) {
         addChatMessage('system', '✓ Stratégie chargée — paramètres prêts dans le panneau de configuration');
       }
       if (data.ready) {
-        showStrategyActions();
+        var cfg = data.response || data;
+        if (hasCloseConditions(cfg)) {
+          showStrategyActions();
+        } else {
+          addChatMessage('system', '⚠️ Strategie sans conditions de sortie completes — ajoutez des conditions de close avant de backtester');
+        }
       }
     }
     _pendingId = null;
@@ -693,9 +731,25 @@ function handleWSMessage(data) {
 
   if (data.type === 'timeout') {
     if (_pendingChatTimeout) { clearTimeout(_pendingChatTimeout); _pendingChatTimeout = null; }
-    addChatMessage('system', 'No response in time — check that the agent is running (screen -ls)');
+    addChatMessage('system', data.content || "⏰ L'IA n'a pas répondu à temps. Causes possibles : limite de tokens, agent arrete, ou probleme reseau.");
     _pendingId = null;
   }
+}
+
+// ── Check if config has close conditions ──
+function hasCloseConditions(cfg) {
+  if (!cfg || !cfg.trades) return false;
+  var sides = ['long', 'short'];
+  for (var si = 0; si < sides.length; si++) {
+    var trades = cfg.trades[sides[si]];
+    if (trades) {
+      for (var ti = 0; ti < trades.length; ti++) {
+        var close = trades[ti].close;
+        if (close && close.conditions && close.conditions.groups && close.conditions.groups.length > 0) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // ── Strategy action buttons ──
@@ -850,11 +904,13 @@ function pollResponse(id) {
           addChatMessage('ai', renderAnalysis(d), true);
         } else if (d.type === 'amelioration') {
           addChatMessage('ai', renderAmelioration(d), true);
+        } else if (d.type === 'config_update') {
+          renderConfig(d.response || d);
+          if (d.ready && hasCloseConditions(d.response || d)) showStrategyActions();
+          addChatMessage('system', '✓ Stratégie chargée — paramètres prêts dans le panneau de configuration');
         } else {
-          var isCfg = d.type === 'config_update';
-          if (d.content && !isCfg) addChatMessage('ai', d.content);
+          if (d.content) addChatMessage('ai', d.content);
           if (d.response) renderConfig(d.response);
-          else if (isCfg) { renderConfig(d); addChatMessage('system', '✓ Stratégie chargée — paramètres prêts dans le panneau de configuration'); }
         }
         _pendingId = null;
       }
@@ -880,6 +936,20 @@ function sendChatMessage() {
     addChatMessage('system', 'Not connected. Retrying...');
     connectWS();
   }
+}
+
+function applyTemplate(name) {
+  var templates = {
+    ichimoku_long: "Ichimoku Long strategy: enter long when price crosses above the cloud (tenkan > kijun, close above senkou_a and senkou_b, chikou above close 26 bars ago)",
+    ichimoku_short: "Ichimoku Short strategy: enter short when price crosses below the cloud (tenkan < kijun, close below senkou_a and senkou_b, chikou below close 26 bars ago)",
+    sma_crossover: "SMA Crossover strategy: buy when fast SMA crosses above slow SMA (close > sma_20 and close > sma_50 after close < sma_50), sell when the opposite happens",
+    rsi_oversold: "RSI Oversold bounce strategy: buy when RSI(14) crosses above 30 after being below 30, sell when RSI(14) crosses above 70 or after 10 bars",
+    bb_mean_rev: "Bollinger Bands mean reversion: buy when close touches or crosses below lower band, sell when close touches or crosses above upper band"
+  };
+  var text = templates[name] || '';
+  if (!text) return;
+  document.getElementById('chatInput').value = text;
+  sendChatMessage();
 }
 
 function renderMarkdown(text) {
@@ -966,6 +1036,8 @@ function renderConfig(cfg) {
   _currentConfig = cfg;
   var section = document.getElementById('paramsSection');
   section.style.display = 'block';
+  var engineSection = document.getElementById('paramsEngineSection');
+  if (engineSection) engineSection.style.display = 'block';
 
   // Header
   renderHeader(cfg);
@@ -973,11 +1045,23 @@ function renderConfig(cfg) {
   // Direction column visibility
   setDirection(cfg.direction || 'long_only');
 
+  // Engine Search fields
+  renderEngineGroup(cfg);
+
   // Trades
   var longTrades = cfg.trades && cfg.trades.long ? cfg.trades.long : [];
   var shortTrades = cfg.trades && cfg.trades.short ? cfg.trades.short : [];
   renderTrades('long', longTrades);
   renderTrades('short', shortTrades);
+
+  // Parse all condition inputs to set data-* attributes for backtest collection
+  var allCondInputs = document.querySelectorAll('.cond-input');
+  for (var ci = 0; ci < allCondInputs.length; ci++) {
+    var inp = allCondInputs[ci];
+    if (inp.value && inp.value !== 'not set') {
+      parseCondInput(inp);
+    }
+  }
 }
 
 function renderHeader(cfg) {
@@ -992,7 +1076,9 @@ function renderHeader(cfg) {
   if (lev && cfg.leverage != null) lev.value = cfg.leverage;
   var dir = document.getElementById('cfgDirection');
   if (dir && cfg.direction) dir.value = cfg.direction;
-  // Engine group
+}
+
+function renderEngineGroup(cfg) {
   var mc = document.getElementById('cfgMCShuffles');
   if (mc && cfg.mc_shuffles != null) mc.value = cfg.mc_shuffles;
   var wf = document.getElementById('cfgWF');
@@ -1122,28 +1208,6 @@ function getCondRowHTML(side, tradeIdx, which, gIdx, cIdx, cond) {
     + '</div>';
 }
 
-function getOrderRowHTML(side, tradeIdx, which, oIdx, order) {
-  var ordTypes = ['market','limit','stop_market','stop_limit','sl','tp','ts'];
-  var szTypes = ['percent','fixed','contracts'];
-  var ot = order.type || 'market';
-  var sz = order.size || 1;
-  var st = order.size_type || 'percent';
-  var pr = order.price != null ? order.price : '';
-  return '<div class="order-row" data-side="' + side + '" data-ti="' + tradeIdx + '" data-which="' + which + '" data-oi="' + oIdx + '">'
-    + '<select onchange="updateOrder(this)">'
-    + ordTypes.map(function(t){return '<option value="' + t + '"' + (t === ot ? ' selected' : '') + '>' + t.toUpperCase() + '</option>';}).join('')
-    + '</select>'
-    + '<input type="number" step="0.5" value="' + sz + '" min="0" onchange="updateOrder(this)" style="width:55px" placeholder="Size">'
-    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'order_size\\')" title="AI suggest">✨</button>'
-    + '<select onchange="updateOrder(this)">'
-    + szTypes.map(function(t){return '<option value="' + t + '"' + (t === st ? ' selected' : '') + '>' + t + '</option>';}).join('')
-    + '</select>'
-    + '<input type="number" step="0.5" value="' + pr + '" onchange="updateOrder(this)" style="width:60px" placeholder="Price">'
-    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'order_price\\')" title="AI suggest">✨</button>'
-    + '<span class="order-del" onclick="this.parentElement.remove()">&times;</span>'
-    + '</div>';
-}
-
 // ── Condition parser ──
 function parseCondInput(input) {
   var text = input.value.trim();
@@ -1176,11 +1240,12 @@ function parseCondInput(input) {
     return;
   }
 
-  // Parse: metric operator value
-  var m = text.match(/^(\\w+)\\s*(>=|<=|>|<|=|!=|gte|lte|gt|lt|eq|neq)\\s*([\\d.-]+)$/);
+  // Parse: metric operator value (numeric or reference like "ichimoku_tenkan")
+  var m = text.match(/^(\\w+)\\s*(>=|<=|>|<|=|!=|gte|lte|gt|lt|eq|neq)\\s*([\\w.\\-]+)$/);
   if (m) {
     var opMap = {'>':'gt','>=':'gte','<':'lt','<=':'lte','=':'eq','!=':'neq','gt':'gt','gte':'gte','lt':'lt','lte':'lte','eq':'eq','neq':'neq'};
-    var metric = m[1], op = opMap[m[2]] || m[2], val = parseFloat(m[3]);
+    var metric = m[1], op = opMap[m[2]] || m[2], rawVal = m[3];
+    var val = isNaN(parseFloat(rawVal)) ? rawVal : parseFloat(rawVal);
     var display = metric + ' ' + (OPS[op] || op) + ' ' + val;
     badge.textContent = display;
     badge.style.color = '#26a69a';
@@ -1337,8 +1402,17 @@ function searchConditions(input) {
           var cat = entry.category_label || '';
           var desc = entry.description || '';
           var hasPresets = entry.presets && entry.presets.length;
+          var isCustom = entry.is_custom;
+          var badgeHtml = '';
+          if (isCustom) {
+            badgeHtml = '<span class="cs-badge" style="background:#7b1fa2;color:#ce93d8">CUSTOM</span>';
+          } else if (hasPresets) {
+            badgeHtml = '<span class="cs-badge">' + entry.presets.length + ' presets</span>';
+          } else {
+            badgeHtml = '<span class="cs-badge">' + (entry.type || '') + '</span>';
+          }
           item.innerHTML = '<div><span class="cs-label">' + label + '</span> <span class="cs-cat">' + cat + '</span><span class="cs-desc">' + desc + '</span></div>'
-            + (hasPresets ? '<span class="cs-badge">' + entry.presets.length + ' presets</span>' : '<span class="cs-badge">' + (entry.type || '') + '</span>');
+            + badgeHtml;
           item.onclick = function() { selectCondition(input, entry); };
           dropdown.appendChild(item);
         });
@@ -1370,6 +1444,54 @@ function selectCondition(input, entry) {
   }
   parseCondInput(input);
   hideSuggest(input);
+}
+
+// ── Custom types helpers ──
+var _customOrderTypes = [];
+
+function loadCustomOrderTypes() {
+  fetch('/api/conditions/search?q=custom&max_results=200')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _customOrderTypes = [];
+      if (data.results) {
+        data.results.forEach(function(e) {
+          if (e.is_custom) _customOrderTypes.push(e.id);
+        });
+      }
+    })
+    .catch(function() {});
+}
+
+// Override order-row dropdown to include custom order types
+function getOrderRowHTML(side, tradeIdx, which, oIdx, order) {
+  // Load custom types if not loaded
+  if (!_customOrderTypes.length) loadCustomOrderTypes();
+  var ordTypes = ['market','limit','stop_market','stop_limit','sl','tp','ts'];
+  // Append custom order types
+  for (var ci = 0; ci < _customOrderTypes.length; ci++) {
+    if (ordTypes.indexOf(_customOrderTypes[ci]) === -1) {
+      ordTypes.push(_customOrderTypes[ci]);
+    }
+  }
+  var szTypes = ['percent','fixed','contracts'];
+  var ot = order.type || 'market';
+  var sz = order.size || 1;
+  var st = order.size_type || 'percent';
+  var pr = order.price != null ? order.price : '';
+  return '<div class="order-row" data-side="' + side + '" data-ti="' + tradeIdx + '" data-which="' + which + '" data-oi="' + oIdx + '">'
+    + '<select onchange="updateOrder(this)">'
+    + ordTypes.map(function(t){return '<option value="' + t + '"' + (t === ot ? ' selected' : '') + '>' + t.toUpperCase() + '</option>';}).join('')
+    + '</select>'
+    + '<input type="number" step="0.5" value="' + sz + '" min="0" onchange="updateOrder(this)" style="width:55px" placeholder="Size">'
+    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'order_size\\')" title="AI suggest">✨</button>'
+    + '<select onchange="updateOrder(this)">'
+    + szTypes.map(function(t){return '<option value="' + t + '"' + (t === st ? ' selected' : '') + '>' + t + '</option>';}).join('')
+    + '</select>'
+    + '<input type="number" step="0.5" value="' + pr + '" onchange="updateOrder(this)" style="width:60px" placeholder="Price">'
+    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'order_price\\')" title="AI suggest">✨</button>'
+    + '<span class="order-del" onclick="this.parentElement.remove()">&times;</span>'
+    + '</div>';
 }
 
 // ── Condition Browser Modal ──
@@ -1443,8 +1565,11 @@ function renderCatalogCategory(catId) {
       for (var mi = 0; mi < mKeys.length; mi++) {
         var mk = mKeys[mi];
         var m = metrics[mk];
+        var isCustomMetric = m.is_custom;
         html += '<div class="modal-metric-item" onclick="addFromCatalog(\\'' + mk + '\\')">'
-          + '<div class="mm-name">' + (m.label || mk) + '</div>'
+          + '<div class="mm-name">' + (m.label || mk)
+          + (isCustomMetric ? ' <span style="font-size:8px;background:#7b1fa2;color:#ce93d8;padding:1px 4px;border-radius:2px;vertical-align:middle">CUSTOM</span>' : '')
+          + '</div>'
           + '<div class="mm-desc">' + (m.description || '').substring(0, 60) + '</div>'
           + '</div>';
       }
@@ -1459,8 +1584,11 @@ function renderCatalogCategory(catId) {
       for (var ii = 0; ii < iKeys.length; ii++) {
         var ik = iKeys[ii];
         var ind = indicators[ik];
+        var isCustomInd = ind.is_custom;
         html += '<div class="modal-ind-item" onclick="addFromCatalog(\\'' + ik + '\\')">'
-          + '<div class="mi-name">' + (ind.label || ik) + '</div>'
+          + '<div class="mi-name">' + (ind.label || ik)
+          + (isCustomInd ? ' <span style="font-size:8px;background:#7b1fa2;color:#ce93d8;padding:1px 4px;border-radius:2px;vertical-align:middle">CUSTOM</span>' : '')
+          + '</div>'
           + '<div class="mi-desc">' + (ind.description || '').substring(0, 60) + '</div>';
         if (ind.presets) {
           for (var pi = 0; pi < ind.presets.length; pi++) {
@@ -1717,6 +1845,7 @@ function loadPairsForConfig(exchange, symbol, timeframe) {
 // ── Clear config ──
 function clearConfig() {
   document.getElementById('paramsSection').style.display = 'none';
+  document.getElementById('paramsEngineSection').style.display = 'none';
   _currentConfig = null;
   hideStrategyActions();
 }
@@ -1945,6 +2074,7 @@ async function runSearch() {
   var cfg = getSearchConfig();
   if (!cfg) {
     document.getElementById('status').textContent = 'Build a strategy via chat first, or add conditions below';
+    addChatMessage('system', '❌ Configuration invalide — verifiez les conditions ou ajoutez des conditions de sortie');
     return;
   }
 
@@ -2198,20 +2328,13 @@ function doExport(fmt) {
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function () {
-  var chatInput = document.getElementById('chatInput');
-  if (!chatInput) return console.warn('chatInput not found');
-
-  chatInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendChatMessage();
-    }
-  });
+  showDefaultConfig();
+  connectWS();
+  loadCustomOrderTypes();
   chatInput.addEventListener('input', function () {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 150) + 'px';
   });
-
   addChatMessage('system', '━━━ How the Strategy Lab works ━━━');
   addChatMessage('system', '1. Fill out the strategy config (header + trade cards) directly');
   addChatMessage('system', '2. Or describe your idea in the chat — OpenCode builds it for you');
@@ -2219,8 +2342,6 @@ document.addEventListener('DOMContentLoaded', function () {
   addChatMessage('system', '4. Click Run Search to backtest');
   addChatMessage('system', '━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   addChatMessage('ai', 'Ready. The strategy config is pre-filled with defaults — edit any field or describe changes in chat.');
-  showDefaultConfig();
-  connectWS();
 });
 </script>
 <!-- ── Condition Browser Modal ── -->

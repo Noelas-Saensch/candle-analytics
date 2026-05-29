@@ -15,7 +15,7 @@ trap cleanup SIGINT SIGTERM
 
 echo "[1/1] Starting API server (port ${PORT:-8000})..."
 cd "$PROJECT_DIR"
-python3 -m uvicorn api.main:app --reload --host "${HOST:-0.0.0.0}" --port "${PORT:-8000}" &
+.venv/bin/uvicorn api.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-8000}" &
 SERVER_PID=$!
 
 echo "  API: http://localhost:${PORT:-8000}"

@@ -1,0 +1,904 @@
+{
+  "_meta": {
+    "description": "All known order types for trading. Each entry defines the order data model, state transitions, parameters, and which side (open/exit) it applies to.",
+    "version": "1.0",
+    "sources": ["Interactive Brokers (100+ types)", "CME Globex", "IEX Exchange", "TSX", "CQG", "TT Trading Technologies", "Fidelity", "FINRA", "Binance", "Bybit", "Coinbase"]
+  },
+  "categories": {
+    "simple": {
+      "id": "simple",
+      "label": "Simple Orders",
+      "description": "Orders that execute when a single condition is met or immediately"
+    },
+    "composite": {
+      "id": "composite",
+      "label": "Composite Orders",
+      "description": "Orders with activation + execution conditions (2 states)"
+    },
+    "complex": {
+      "id": "complex",
+      "label": "Complex Orders",
+      "description": "Orders with multiple concurrent activation/execution paths (3+ states, branching)"
+    },
+    "time_condition": {
+      "id": "time_condition",
+      "label": "Time-in-Force Conditions",
+      "description": "Duration and execution constraints attached to other order types"
+    },
+    "algorithmic": {
+      "id": "algorithmic",
+      "label": "Algorithmic Orders",
+      "description": "Smart order routing and execution algorithms"
+    },
+    "execution": {
+      "id": "execution",
+      "label": "Execution Constraints",
+      "description": "Fill policy and visibility modifiers"
+    }
+  },
+  "order_types": [
+    {
+      "id": "market",
+      "name": "Market",
+      "category": "simple",
+      "scope": ["open", "exit"],
+      "description": "Execute immediately at current market price. Highest fill probability.",
+      "state_model": {
+        "states": ["idle", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "executed", "trigger": "immediate", "condition": null }
+        ]
+      },
+      "params": [],
+      "builtin": true
+    },
+    {
+      "id": "limit",
+      "name": "Limit",
+      "category": "simple",
+      "scope": ["open", "exit"],
+      "description": "Execute at specified price or better. Buy ≤ limit, sell ≥ limit.",
+      "state_model": {
+        "states": ["idle", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "executed", "trigger": "price_reached", "condition": "buy: price <= limit_price, sell: price >= limit_price" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price for execution" }
+      ],
+      "builtin": true
+    },
+    {
+      "id": "stop_market",
+      "name": "Stop Market",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Becomes a market order when stop price is reached. Buy: price ≥ stop, Sell: price ≤ stop.",
+      "state_model": {
+        "states": ["idle", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "triggered", "trigger": "price_reached", "condition": "buy: price >= stop_price, sell: price <= stop_price" },
+          { "from": "triggered", "to": "executed", "trigger": "immediate", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "stop_price", "type": "float", "unit": "price", "description": "Stop activation price" }
+      ],
+      "builtin": true
+    },
+    {
+      "id": "stop_limit",
+      "name": "Stop Limit",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Becomes a limit order when stop price is reached. Combines stop + limit.",
+      "state_model": {
+        "states": ["idle", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "triggered", "trigger": "price_reached", "condition": "buy: price >= stop_price, sell: price <= stop_price" },
+          { "from": "triggered", "to": "executed", "trigger": "price_reached", "condition": "buy: price <= limit_price, sell: price >= limit_price" }
+        ]
+      },
+      "params": [
+        { "name": "stop_price", "type": "float", "unit": "price", "description": "Stop activation price" },
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price once triggered" }
+      ],
+      "builtin": true
+    },
+    {
+      "id": "trailing_stop",
+      "name": "Trailing Stop",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Stop price trails market at fixed distance. For sell: activates at peak - trail. For buy: activates at trough + trail.",
+      "state_model": {
+        "states": ["idle", "tracking", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "tracking", "trigger": "position_open", "condition": null },
+          { "from": "tracking", "to": "executed", "trigger": "price_reached", "condition": "sell: price <= peak * (1 - trail_pct/100), buy: price >= trough * (1 + trail_pct/100)" }
+        ]
+      },
+      "params": [
+        { "name": "trail_amount", "type": "float", "unit": "%", "description": "Trailing distance as percentage", "default": 2.0 },
+        { "name": "trail_type", "type": "select", "options": ["%", "points"], "default": "%", "description": "Trail unit type" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "trailing_stop_limit",
+      "name": "Trailing Stop Limit",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Trailing stop that triggers a limit order instead of market order.",
+      "state_model": {
+        "states": ["idle", "tracking", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "tracking", "trigger": "position_open", "condition": null },
+          { "from": "tracking", "to": "triggered", "trigger": "price_reached", "condition": "sell: price <= peak * (1 - trail_pct/100)" },
+          { "from": "triggered", "to": "executed", "trigger": "price_reached", "condition": "buy: price <= limit_price, sell: price >= limit_price" }
+        ]
+      },
+      "params": [
+        { "name": "trail_amount", "type": "float", "unit": "%", "description": "Trailing distance", "default": 2.0 },
+        { "name": "limit_offset", "type": "float", "unit": "%", "description": "Limit price offset from trigger", "default": 0.5 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "trailing_limit",
+      "name": "Trailing Limit",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Limit order that auto-adjusts its price to trail the market. For buy: follows best bid upward, holds on drops.",
+      "state_model": {
+        "states": ["idle", "tracking", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "tracking", "trigger": "order_placed", "condition": null },
+          { "from": "tracking", "to": "executed", "trigger": "price_reached", "condition": "ask <= limit_price (buy) or bid >= limit_price (sell)" }
+        ]
+      },
+      "params": [
+        { "name": "offset", "type": "float", "unit": "price", "description": "Trailing offset from market", "default": 0.01 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "market_if_touched",
+      "name": "Market If Touched (MIT)",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Becomes a market order when a specified price level is touched. Buy MIT placed below market, sell MIT above.",
+      "state_model": {
+        "states": ["idle", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "triggered", "trigger": "price_touched", "condition": "buy: price <= trigger_price, sell: price >= trigger_price" },
+          { "from": "triggered", "to": "executed", "trigger": "immediate", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "trigger_price", "type": "float", "unit": "price", "description": "Price level that triggers market order" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "limit_if_touched",
+      "name": "Limit If Touched (LIT)",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Becomes a limit order when a specified price level is touched.",
+      "state_model": {
+        "states": ["idle", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "triggered", "trigger": "price_touched", "condition": "buy: price <= trigger_price, sell: price >= trigger_price" },
+          { "from": "triggered", "to": "executed", "trigger": "price_reached", "condition": "buy: price <= limit_price, sell: price >= limit_price" }
+        ]
+      },
+      "params": [
+        { "name": "trigger_price", "type": "float", "unit": "price", "description": "Price level that activates limit order" },
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price once triggered" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "market_on_open",
+      "name": "Market On Open (MOO)",
+      "category": "simple",
+      "scope": ["open", "exit"],
+      "description": "Market order executed at the opening auction price.",
+      "state_model": {
+        "states": ["idle", "pending_open", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pending_open", "trigger": "order_placed_before_open", "condition": null },
+          { "from": "pending_open", "to": "executed", "trigger": "market_open", "condition": null }
+        ]
+      },
+      "params": [],
+      "builtin": false
+    },
+    {
+      "id": "market_on_close",
+      "name": "Market On Close (MOC)",
+      "category": "simple",
+      "scope": ["open", "exit"],
+      "description": "Market order executed at the closing auction price.",
+      "state_model": {
+        "states": ["idle", "pending_close", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pending_close", "trigger": "order_placed_before_close", "condition": null },
+          { "from": "pending_close", "to": "executed", "trigger": "market_close", "condition": null }
+        ]
+      },
+      "params": [],
+      "builtin": false
+    },
+    {
+      "id": "limit_on_open",
+      "name": "Limit On Open (LOO)",
+      "category": "simple",
+      "scope": ["open", "exit"],
+      "description": "Limit order submitted for the opening auction.",
+      "state_model": {
+        "states": ["idle", "pending_open", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pending_open", "trigger": "order_placed_before_open", "condition": null },
+          { "from": "pending_open", "to": "executed", "trigger": "market_open", "condition": "opening_price meets limit_condition" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price for opening auction" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "limit_on_close",
+      "name": "Limit On Close (LOC)",
+      "category": "simple",
+      "scope": ["open", "exit"],
+      "description": "Limit order submitted for the closing auction.",
+      "state_model": {
+        "states": ["idle", "pending_close", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pending_close", "trigger": "order_placed_before_close", "condition": null },
+          { "from": "pending_close", "to": "executed", "trigger": "market_close", "condition": "closing_price meets limit_condition" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price for closing auction" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "market_to_limit",
+      "name": "Market-to-Limit (MTL)",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Sent as market order. If only partially filled, remaining becomes limit order at fill price.",
+      "state_model": {
+        "states": ["idle", "partial_fill", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "partial_fill", "trigger": "immediate", "condition": "partial_fill_occurs" },
+          { "from": "partial_fill", "to": "executed", "trigger": "price_reached", "condition": "remaining <= limit_price (buy)" },
+          { "from": "idle", "to": "executed", "trigger": "immediate", "condition": "full_fill_occurs" }
+        ]
+      },
+      "params": [
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Order quantity" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "bracket",
+      "name": "Bracket Order",
+      "category": "complex",
+      "scope": ["exit"],
+      "description": "Entry order + 2 exit orders: profit target (limit) and stop loss (stop). If one exit fills, the other cancels.",
+      "state_model": {
+        "states": ["idle", "entry_filled", "exit_a_executed", "exit_b_executed", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "entry_filled", "trigger": "entry_order_filled", "condition": null },
+          { "from": "entry_filled", "to": "exit_a_executed", "trigger": "target_reached", "condition": "price >= target_price" },
+          { "from": "entry_filled", "to": "exit_b_executed", "trigger": "stop_triggered", "condition": "price <= stop_price" },
+          { "from": "entry_filled", "to": "cancelled", "trigger": "manual_cancel", "condition": null },
+          { "from": "idle", "to": "cancelled", "trigger": "entry_expired", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "entry_price", "type": "float", "unit": "price", "description": "Entry order price" },
+        { "name": "target_price", "type": "float", "unit": "price", "description": "Profit target limit price" },
+        { "name": "stop_price", "type": "float", "unit": "price", "description": "Stop loss trigger price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "oco",
+      "name": "One-Cancels-Other (OCO)",
+      "category": "complex",
+      "scope": ["open", "exit"],
+      "description": "Two orders placed simultaneously. When one executes, the other is automatically cancelled.",
+      "state_model": {
+        "states": ["idle", "order_a_executed", "order_b_executed", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "order_a_executed", "trigger": "order_a_filled", "condition": null },
+          { "from": "idle", "to": "order_b_executed", "trigger": "order_b_filled", "condition": null },
+          { "from": "order_a_executed", "to": "cancelled", "trigger": "auto_cancel_b", "condition": null },
+          { "from": "order_b_executed", "to": "cancelled", "trigger": "auto_cancel_a", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "order_a_type", "type": "select", "options": ["limit", "stop", "stop_limit", "trailing_stop"], "description": "Type of first order" },
+        { "name": "order_a_price", "type": "float", "unit": "price", "description": "Price for first order" },
+        { "name": "order_b_type", "type": "select", "options": ["limit", "stop", "stop_limit", "trailing_stop"], "description": "Type of second order" },
+        { "name": "order_b_price", "type": "float", "unit": "price", "description": "Price for second order" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "oto",
+      "name": "One-Triggers-Other (OTO)",
+      "category": "complex",
+      "scope": ["open", "exit"],
+      "description": "Primary order + secondary order(s). Secondary activates only when primary is filled.",
+      "state_model": {
+        "states": ["idle", "primary_filled", "secondary_placed", "secondary_executed", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "primary_filled", "trigger": "primary_filled", "condition": null },
+          { "from": "primary_filled", "to": "secondary_placed", "trigger": "auto_place_secondary", "condition": null },
+          { "from": "secondary_placed", "to": "secondary_executed", "trigger": "secondary_condition_met", "condition": null },
+          { "from": "idle", "to": "cancelled", "trigger": "manual_cancel", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "primary_type", "type": "select", "options": ["market", "limit", "stop"], "description": "Primary order type" },
+        { "name": "primary_price", "type": "float", "unit": "price", "description": "Primary order price" },
+        { "name": "secondary_type", "type": "select", "options": ["limit", "stop", "trailing_stop"], "description": "Secondary order type" },
+        { "name": "secondary_price", "type": "float", "unit": "price", "description": "Secondary order price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "otoco",
+      "name": "One-Triggers-One-Cancels-Other (OTOCO)",
+      "category": "complex",
+      "scope": ["exit"],
+      "description": "OTOCO = OTO + OCO. Primary entry triggers 2 exit orders that are OCO to each other.",
+      "state_model": {
+        "states": ["idle", "primary_filled", "oco_active", "exit_a_executed", "exit_b_executed", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "primary_filled", "trigger": "primary_filled", "condition": null },
+          { "from": "primary_filled", "to": "oco_active", "trigger": "auto_place_oco", "condition": null },
+          { "from": "oco_active", "to": "exit_a_executed", "trigger": "target_reached", "condition": null },
+          { "from": "oco_active", "to": "exit_b_executed", "trigger": "stop_triggered", "condition": null },
+          { "from": "exit_a_executed", "to": "cancelled", "trigger": "auto_cancel_b", "condition": null },
+          { "from": "exit_b_executed", "to": "cancelled", "trigger": "auto_cancel_a", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "entry_type", "type": "select", "options": ["market", "limit"], "description": "Entry order type" },
+        { "name": "entry_price", "type": "float", "unit": "price", "description": "Entry price" },
+        { "name": "target_price", "type": "float", "unit": "price", "description": "Profit target" },
+        { "name": "stop_price", "type": "float", "unit": "price", "description": "Stop loss" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "contingent",
+      "name": "Contingent Order",
+      "category": "complex",
+      "scope": ["open", "exit"],
+      "description": "Order triggered by external conditions: index price, volume, % change, 52-week H/L, bid/ask spread.",
+      "state_model": {
+        "states": ["idle", "monitoring", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "monitoring", "trigger": "order_placed", "condition": null },
+          { "from": "monitoring", "to": "triggered", "trigger": "contingency_met", "condition": "contingency_condition_true" },
+          { "from": "triggered", "to": "executed", "trigger": "underlying_order_filled", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "contingency_type", "type": "select", "options": ["index_price", "volume", "change_pct", "52w_high", "52w_low", "bid_ask_spread", "sector_performance"], "description": "Contingency trigger type" },
+        { "name": "contingency_value", "type": "float", "unit": "mixed", "description": "Threshold value for contingency" },
+        { "name": "underlying_order_type", "type": "select", "options": ["market", "limit", "stop", "trailing_stop"], "description": "Order type to place when triggered" },
+        { "name": "underlying_price", "type": "float", "unit": "price", "description": "Price for underlying order" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "one_cancels_all",
+      "name": "One-Cancels-All (OCA)",
+      "category": "complex",
+      "scope": ["open", "exit"],
+      "description": "Group of orders. When any one fills, all others are cancelled. N-way OCO.",
+      "state_model": {
+        "states": ["idle", "order_n_executed", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "order_n_executed", "trigger": "any_order_filled", "condition": null },
+          { "from": "order_n_executed", "to": "cancelled", "trigger": "auto_cancel_others", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "order_count", "type": "int", "description": "Number of orders in the group", "default": 3 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "iceberg",
+      "name": "Iceberg / Reserve Order",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Large order shown in small visible portions. When one slice fills, next slice appears.",
+      "state_model": {
+        "states": ["idle", "slice_active", "slice_filled", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "slice_active", "trigger": "order_placed", "condition": "display_qty_shown" },
+          { "from": "slice_active", "to": "slice_filled", "trigger": "slice_fully_filled", "condition": null },
+          { "from": "slice_filled", "to": "slice_active", "trigger": "next_slice_released", "condition": "remaining_qty > 0" },
+          { "from": "slice_filled", "to": "executed", "trigger": "all_slices_filled", "condition": "remaining_qty == 0" }
+        ]
+      },
+      "params": [
+        { "name": "total_quantity", "type": "float", "unit": "units", "description": "Total order size" },
+        { "name": "display_quantity", "type": "float", "unit": "units", "description": "Visible portion per slice", "default": 100 },
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price for each slice" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "post_only",
+      "name": "Post Only",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Limit order that must add liquidity (taker fee discount). Cancelled if would cross the spread.",
+      "state_model": {
+        "states": ["idle", "posted", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "posted", "trigger": "order_book_added", "condition": "does_not_take_liquidity" },
+          { "from": "posted", "to": "executed", "trigger": "price_reached", "condition": "aggressor_matches" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price (must not cross spread)" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "fill_or_kill",
+      "name": "Fill or Kill (FOK)",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Order must fill fully immediately or be cancelled entirely.",
+      "state_model": {
+        "states": ["idle", "executed", "killed"],
+        "transitions": [
+          { "from": "idle", "to": "executed", "trigger": "immediate_full_fill", "condition": null },
+          { "from": "idle", "to": "killed", "trigger": "immediate", "condition": "full_fill_not_possible" }
+        ]
+      },
+      "params": [
+        { "name": "price", "type": "float", "unit": "price", "description": "Order price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "immediate_or_cancel",
+      "name": "Immediate or Cancel (IOC)",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Fill what's available immediately, cancel the rest. Partial fills allowed.",
+      "state_model": {
+        "states": ["idle", "partial_fill", "executed", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "partial_fill", "trigger": "immediate", "condition": "partial_fill_occurs" },
+          { "from": "idle", "to": "executed", "trigger": "immediate", "condition": "full_fill_occurs" },
+          { "from": "partial_fill", "to": "cancelled", "trigger": "immediate", "condition": "remaining_cancelled" }
+        ]
+      },
+      "params": [
+        { "name": "price", "type": "float", "unit": "price", "description": "Order price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "all_or_none",
+      "name": "All or None (AON)",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Order must fill entire quantity or none at all. No partial fills.",
+      "state_model": {
+        "states": ["idle", "executed", "expired"],
+        "transitions": [
+          { "from": "idle", "to": "executed", "trigger": "full_fill_at_price", "condition": "entire_qty_available" },
+          { "from": "idle", "to": "expired", "trigger": "time_expired", "condition": "full_fill_not_possible" }
+        ]
+      },
+      "params": [
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Total order size (must fill entirely)" },
+        { "name": "price", "type": "float", "unit": "price", "description": "Limit price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "book_or_cancel",
+      "name": "Book or Cancel (BOC)",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Attempt to add to order book. If order would immediately take liquidity (fill), it's cancelled.",
+      "state_model": {
+        "states": ["idle", "booked", "cancelled"],
+        "transitions": [
+          { "from": "idle", "to": "booked", "trigger": "order_book_added", "condition": "adds_liquidity" },
+          { "from": "idle", "to": "cancelled", "trigger": "immediate", "condition": "would_take_liquidity" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "sweep_to_fill",
+      "name": "Sweep-to-Fill",
+      "category": "execution",
+      "scope": ["open", "exit"],
+      "description": "Market order that sweeps multiple price levels/venues to fill entire quantity.",
+      "state_model": {
+        "states": ["idle", "sweeping", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "sweeping", "trigger": "order_placed", "condition": null },
+          { "from": "sweeping", "to": "executed", "trigger": "all_levels_swept", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Order quantity" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "discretionary_limit",
+      "name": "Discretionary Limit (D-Limit)",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Limit order that can trade-through the limit price by a discretionary offset to get filled.",
+      "state_model": {
+        "states": ["idle", "monitoring", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "monitoring", "trigger": "order_placed", "condition": null },
+          { "from": "monitoring", "to": "executed", "trigger": "price_in_range", "condition": "price within limit +/- discretionary_offset" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Base limit price" },
+        { "name": "discretionary_offset", "type": "float", "unit": "price", "description": "Additional price discretion" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "midpoint_peg",
+      "name": "Midpoint Peg (M-Peg)",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Non-displayed order pegged to NBBO midpoint. Aims to trade inside the spread.",
+      "state_model": {
+        "states": ["idle", "pegging", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pegging", "trigger": "order_placed", "condition": null },
+          { "from": "pegging", "to": "executed", "trigger": "crossing_at_midpoint", "condition": "opposite_order_at_midpoint" }
+        ]
+      },
+      "params": [
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Max/min price cap", "optional": true }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "primary_peg",
+      "name": "Primary Peg (P-Peg)",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Order pegged to the primary exchange's best bid/offer (away from midpoint).",
+      "state_model": {
+        "states": ["idle", "pegging", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pegging", "trigger": "order_placed", "condition": null },
+          { "from": "pegging", "to": "executed", "trigger": "aggressor_hits_peg", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "offset", "type": "float", "unit": "price", "description": "Offset from primary quote", "default": 0.0 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "market_peg",
+      "name": "Market Peg",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Order pegged to contra-side of the market (buy at best ask, sell at best bid).",
+      "state_model": {
+        "states": ["idle", "pegging", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pegging", "trigger": "order_placed", "condition": null },
+          { "from": "pegging", "to": "executed", "trigger": "aggressor_hits_peg", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "offset", "type": "float", "unit": "price", "description": "Passive offset from contra-side", "default": 0.0 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "twap",
+      "name": "TWAP (Time-Weighted Average Price)",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Slices order evenly over time to achieve time-weighted average price.",
+      "state_model": {
+        "states": ["idle", "slicing", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "slicing", "trigger": "order_started", "condition": null },
+          { "from": "slicing", "to": "executed", "trigger": "all_slices_complete", "condition": "remaining_qty == 0" },
+          { "from": "slicing", "to": "slicing", "trigger": "slice_submitted", "condition": "time_interval_elapsed" }
+        ]
+      },
+      "params": [
+        { "name": "total_quantity", "type": "float", "unit": "units", "description": "Total quantity to execute" },
+        { "name": "duration_minutes", "type": "int", "unit": "minutes", "description": "Total execution time", "default": 60 },
+        { "name": "slices", "type": "int", "description": "Number of slices", "default": 12 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "vwap",
+      "name": "VWAP (Volume-Weighted Average Price)",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Executes order to track the volume-weighted average price. Slices based on volume profile.",
+      "state_model": {
+        "states": ["idle", "tracking_volume", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "tracking_volume", "trigger": "order_started", "condition": null },
+          { "from": "tracking_volume", "to": "executed", "trigger": "all_volume_slices_complete", "condition": "remaining_qty == 0" }
+        ]
+      },
+      "params": [
+        { "name": "total_quantity", "type": "float", "unit": "units", "description": "Total quantity" },
+        { "name": "max_participation_pct", "type": "float", "unit": "%", "description": "Max % of volume to participate", "default": 10 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "percent_of_volume",
+      "name": "Percent of Volume (POV)",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Participates at a fixed percentage of market volume. Adapts to changing volume.",
+      "state_model": {
+        "states": ["idle", "participating", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "participating", "trigger": "order_started", "condition": null },
+          { "from": "participating", "to": "executed", "trigger": "remaining_qty_zero", "condition": "all_filled" }
+        ]
+      },
+      "params": [
+        { "name": "total_quantity", "type": "float", "unit": "units", "description": "Total quantity" },
+        { "name": "participation_rate", "type": "float", "unit": "%", "description": "% of volume to participate", "default": 10 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "accumulate_distribute",
+      "name": "Accumulate / Distribute",
+      "category": "algorithmic",
+      "scope": ["open"],
+      "description": "Accumulate (buy) or distribute (sell) over time with price limits. Reduces market impact.",
+      "state_model": {
+        "states": ["idle", "accumulating", "distributing", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "accumulating", "trigger": "order_started", "condition": "buy_side" },
+          { "from": "idle", "to": "distributing", "trigger": "order_started", "condition": "sell_side" },
+          { "from": "accumulating", "to": "executed", "trigger": "target_qty_reached", "condition": null },
+          { "from": "distributing", "to": "executed", "trigger": "target_qty_reached", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "side", "type": "select", "options": ["buy", "sell"], "description": "Accumulate (buy) or distribute (sell)" },
+        { "name": "total_quantity", "type": "float", "unit": "units", "description": "Target quantity" },
+        { "name": "max_price", "type": "float", "unit": "price", "description": "Maximum price for buys", "optional": true },
+        { "name": "min_price", "type": "float", "unit": "price", "description": "Minimum price for sells", "optional": true }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "arrival_price",
+      "name": "Arrival Price",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Executes to minimize slippage from the price at order arrival. Uses short-term price prediction.",
+      "state_model": {
+        "states": ["idle", "executing", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "executing", "trigger": "order_started", "condition": null },
+          { "from": "executing", "to": "executed", "trigger": "target_met_or_time_expired", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "urgency", "type": "select", "options": ["low", "medium", "high"], "description": "Execution urgency", "default": "medium" },
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Order quantity" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "minimize_impact",
+      "name": "Minimize Impact",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Minimizes market impact by adaptive participation rate. Slows when impact is high.",
+      "state_model": {
+        "states": ["idle", "monitoring_impact", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "monitoring_impact", "trigger": "order_started", "condition": null },
+          { "from": "monitoring_impact", "to": "executed", "trigger": "all_filled", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "max_impact_pct", "type": "float", "unit": "%", "description": "Maximum allowed market impact", "default": 0.1 },
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Order quantity" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "balance_impact_risk",
+      "name": "Balance Impact and Risk",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Balances market impact against timing risk. More aggressive when urgency is higher.",
+      "state_model": {
+        "states": ["idle", "balancing", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "balancing", "trigger": "order_started", "condition": null },
+          { "from": "balancing", "to": "executed", "trigger": "all_filled", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "risk_aversion", "type": "float", "description": "Risk aversion parameter (higher = faster execution)", "default": 0.5, "min": 0, "max": 1 },
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Order quantity" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "volatility_order",
+      "name": "Volatility Order",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Uses volatility forecast to time execution. Executes during predicted low-volatility periods.",
+      "state_model": {
+        "states": ["idle", "awaiting_vol_window", "executing", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "awaiting_vol_window", "trigger": "order_started", "condition": null },
+          { "from": "awaiting_vol_window", "to": "executing", "trigger": "volatility_below_threshold", "condition": null },
+          { "from": "executing", "to": "executed", "trigger": "all_filled_or_time_expired", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "max_volatility", "type": "float", "unit": "%", "description": "Maximum volatility to execute", "default": 0.5 },
+        { "name": "quantity", "type": "float", "unit": "units", "description": "Order quantity" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "pegged_to_midpoint",
+      "name": "Pegged-to-Midpoint",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Order pegged to the midpoint of NBBO. Price adjusts continuously.",
+      "state_model": {
+        "states": ["idle", "pegging", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pegging", "trigger": "order_placed", "condition": null },
+          { "from": "pegging", "to": "executed", "trigger": "crossing_orders", "condition": null }
+        ]
+      },
+      "params": [],
+      "builtin": false
+    },
+    {
+      "id": "pegged_to_stock",
+      "name": "Pegged-to-Stock",
+      "category": "algorithmic",
+      "scope": ["open", "exit"],
+      "description": "Order pegged relative to stock price (for options/futures). Adjusts with underlying.",
+      "state_model": {
+        "states": ["idle", "pegging", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "pegging", "trigger": "order_placed", "condition": null },
+          { "from": "pegging", "to": "executed", "trigger": "price_reached", "condition": "underlying_at_trigger" }
+        ]
+      },
+      "params": [
+        { "name": "delta", "type": "float", "description": "Delta offset from underlying price", "default": 0.0 }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "stop_with_protection",
+      "name": "Stop with Protection",
+      "category": "composite",
+      "scope": ["exit"],
+      "description": "Stop order with a protected range to prevent fills at extreme prices (CME Globex).",
+      "state_model": {
+        "states": ["idle", "triggered", "executing", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "triggered", "trigger": "price_reached", "condition": "stop_price_breached" },
+          { "from": "triggered", "to": "executing", "trigger": "market_order_sent", "condition": null },
+          { "from": "executing", "to": "executed", "trigger": "fill_within_protected_range", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "stop_price", "type": "float", "unit": "price", "description": "Stop trigger price" },
+        { "name": "protected_range", "type": "float", "unit": "price", "description": "Max allowed fill deviation" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "adjustable_stop",
+      "name": "Adjustable Stop",
+      "category": "composite",
+      "scope": ["exit"],
+      "description": "Stop order with one-time price adjustment. Modify stop/limit/trail after activation.",
+      "state_model": {
+        "states": ["idle", "adjusted", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "adjusted", "trigger": "adjustment_applied", "condition": "once_per_order" },
+          { "from": "adjusted", "to": "triggered", "trigger": "new_price_reached", "condition": null },
+          { "from": "adjusted", "to": "executed", "trigger": "fill_after_adjustment", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "original_stop_price", "type": "float", "unit": "price", "description": "Original stop price" },
+        { "name": "adjusted_stop_price", "type": "float", "unit": "price", "description": "Adjusted stop price" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "trailing_limit_if_touched",
+      "name": "Trailing Limit If Touched",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Limit If Touched that trails the market until triggered.",
+      "state_model": {
+        "states": ["idle", "trailing_toward_trigger", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "trailing_toward_trigger", "trigger": "order_placed", "condition": null },
+          { "from": "trailing_toward_trigger", "to": "triggered", "trigger": "price_touched", "condition": "trigger_price_reached" },
+          { "from": "triggered", "to": "executed", "trigger": "price_reached", "condition": "limit_price_met" }
+        ]
+      },
+      "params": [
+        { "name": "trail_amount", "type": "float", "unit": "%", "description": "Trailing distance that adjusts toward trigger" },
+        { "name": "trigger_price", "type": "float", "unit": "price", "description": "Price that activates limit" },
+        { "name": "limit_price", "type": "float", "unit": "price", "description": "Limit price after trigger" }
+      ],
+      "builtin": false
+    },
+    {
+      "id": "trailing_market_if_touched",
+      "name": "Trailing Market If Touched",
+      "category": "composite",
+      "scope": ["open", "exit"],
+      "description": "Market If Touched that trails the market until triggered.",
+      "state_model": {
+        "states": ["idle", "trailing_toward_trigger", "triggered", "executed"],
+        "transitions": [
+          { "from": "idle", "to": "trailing_toward_trigger", "trigger": "order_placed", "condition": null },
+          { "from": "trailing_toward_trigger", "to": "triggered", "trigger": "price_touched", "condition": null },
+          { "from": "triggered", "to": "executed", "trigger": "immediate", "condition": null }
+        ]
+      },
+      "params": [
+        { "name": "trail_amount", "type": "float", "unit": "%", "description": "Trailing distance" },
+        { "name": "trigger_price", "type": "float", "unit": "price", "description": "Price that triggers market order" }
+      ],
+      "builtin": false
+    }
+  ]
+}

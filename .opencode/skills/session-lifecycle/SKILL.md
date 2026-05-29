@@ -111,15 +111,15 @@ sleep 1
 rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
 
 # 3. Start Strategy Lab agent
-screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/agent.py' || { echo "FAIL: agent screen"; ALL_OK=false; }
+screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py' || { echo "FAIL: agent screen"; ALL_OK=false; }
 sleep 1
 
 # 4. Start Vibe Lab agent
-screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/vibe_agent.py' || { echo "FAIL: vibe-agent screen"; ALL_OK=false; }
+screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py' || { echo "FAIL: vibe-agent screen"; ALL_OK=false; }
 sleep 1
 
 # 5. Start FastAPI server
-screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && uvicorn api.main:app --host 0.0.0.0 --port 8001' || { echo "FAIL: candle screen"; ALL_OK=false; }
+screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001' || { echo "FAIL: candle screen"; ALL_OK=false; }
 sleep 3
 curl -sf http://localhost:8001/api/health > /dev/null || { echo "FAIL: health check"; ALL_OK=false; }
 

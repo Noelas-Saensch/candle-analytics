@@ -1,0 +1,621 @@
+{
+  "_meta": {
+    "description": "Additional indicators not yet in the built-in CONDITION_REGISTRY or vibe_engine. Extends the existing ~200 built-in entries with ~60+ more from TA-Lib, pandas-ta, SMC, and microstructure analysis.",
+    "version": "1.0",
+    "sources": ["TA-Lib", "pandas-ta", "TradingView Pine Script", "QuantConnect", "SMC/ICT concepts"]
+  },
+  "overlap": {
+    "id": "overlap",
+    "label": "Moving Averages & Overlap",
+    "description": "Extended moving averages and trend-following overlays",
+    "icon": "📈",
+    "indicators": {
+      "alma": {
+        "id": "alma", "label": "ALMA", "description": "Arnaud Legoux Moving Average — Gaussian smoothing with reduced lag",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}, {"name": "sigma", "type": "float", "default": 6.0, "min": 0.1, "max": 20}, {"name": "offset", "type": "float", "default": 0.85, "min": 0, "max": 1}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "kama": {
+        "id": "kama", "label": "KAMA", "description": "Kaufman Adaptive Moving Average — adapts to volatility",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}, {"name": "fast", "type": "int", "default": 2, "min": 2, "max": 10}, {"name": "slow", "type": "int", "default": 30, "min": 10, "max": 100}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "zlma": {
+        "id": "zlma", "label": "ZLMA", "description": "Zero-Lag Moving Average — John Ehlers' design to eliminate lag",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "tema": {
+        "id": "tema", "label": "TEMA", "description": "Triple Exponential Moving Average — smoother than EMA with less lag",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "dema": {
+        "id": "dema", "label": "DEMA", "description": "Double Exponential Moving Average — reduced lag vs EMA",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "t3": {
+        "id": "t3", "label": "T3", "description": "Triple Exponential Moving Average (T3) — smoother than TEMA",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}, {"name": "volume_factor", "type": "float", "default": 0.7, "min": 0, "max": 1}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "trima": {
+        "id": "trima", "label": "TRIMA", "description": "Triangular Moving Average — double-smoothed SMA",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "wma": {
+        "id": "wma", "label": "WMA", "description": "Weighted Moving Average — linear weight, most weight to recent",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "vidya": {
+        "id": "vidya", "label": "VIDYA", "description": "Variable Index Dynamic Average — adapts to volatility via CMO",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}, {"name": "cmo_period", "type": "int", "default": 14, "min": 2, "max": 100}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "mcgd": {
+        "id": "mcgd", "label": "McGinley Dynamic", "description": "Dynamic moving average that accelerates/decelerates with price",
+        "params": [{"name": "period", "type": "int", "default": 20, "min": 2, "max": 200}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below", "crossover", "crossunder"]
+      },
+      "supertrend": {
+        "id": "supertrend", "label": "SuperTrend", "description": "ATR-based trend indicator — buy/sell signals based on price vs bands",
+        "params": [{"name": "period", "type": "int", "default": 10, "min": 2, "max": 100}, {"name": "multiplier", "type": "float", "default": 3.0, "min": 0.5, "max": 10}],
+        "outputs": [{"name": "trend", "label": "Trend (1=up, -1=down)"}, {"name": "value", "label": "SuperTrend line"}],
+        "ops": ["gt", "lt"], "comparisons": ["price_above", "price_below"]
+      },
+      "ichimoku": {
+        "id": "ichimoku", "label": "Ichimoku Cloud", "description": "Ichimoku Kinko Hyo — comprehensive trend/volume/support system",
+        "params": [{"name": "tenkan_period", "type": "int", "default": 9}, {"name": "kijun_period", "type": "int", "default": 26}, {"name": "senkou_span_b_period", "type": "int", "default": 52}],
+        "outputs": [{"name": "tenkan", "label": "Tenkan-sen"}, {"name": "kijun", "label": "Kijun-sen"}, {"name": "senkou_a", "label": "Senkou Span A"}, {"name": "senkou_b", "label": "Senkou Span B"}, {"name": "chikou", "label": "Chikou Span"}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above_cloud", "price_below_cloud", "tenkan_above_kijun", "tenkan_below_kijun", "tk_cross", "senkou_a_above_b"]
+      }
+    }
+  },
+  "momentum_extra": {
+    "id": "momentum_extra",
+    "label": "Momentum (Extended)",
+    "description": "Additional momentum and oscillator indicators beyond RSI/MACD/Stoch",
+    "icon": "⚡",
+    "indicators": {
+      "tsi": {
+        "id": "tsi", "label": "TSI", "description": "True Strength Index — double-smoothed rate of change, identifies overbought/oversold",
+        "params": [{"name": "fast_period", "type": "int", "default": 13}, {"name": "slow_period", "type": "int", "default": 25}],
+        "outputs": [{"name": "tsi", "label": "TSI"}, {"name": "signal", "label": "Signal line"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "ultimate_osc": {
+        "id": "ultimate_osc", "label": "Ultimate Oscillator", "description": "Multi-timeframe momentum oscillator by Larry Williams",
+        "params": [{"name": "period1", "type": "int", "default": 7}, {"name": "period2", "type": "int", "default": 14}, {"name": "period3", "type": "int", "default": 28}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "coppock": {
+        "id": "coppock", "label": "Coppock Curve", "description": "Long-term momentum indicator for major market bottoms",
+        "params": [{"name": "roc_period", "type": "int", "default": 14}, {"name": "wma_period", "type": "int", "default": 10}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["cross_above_zero", "cross_below_zero"]
+      },
+      "kst": {
+        "id": "kst", "label": "KST Oscillator", "description": "Know Sure Thing — summed rate of change across 4 timeframes",
+        "params": [{"name": "roc1", "type": "int", "default": 10}, {"name": "roc2", "type": "int", "default": 15}, {"name": "roc3", "type": "int", "default": 20}, {"name": "roc4", "type": "int", "default": 30}],
+        "outputs": [{"name": "kst", "label": "KST"}, {"name": "signal", "label": "Signal line"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "fisher": {
+        "id": "fisher", "label": "Fisher Transform", "description": "John Ehlers' transform — Gaussian normalization of price for turning points",
+        "params": [{"name": "period", "type": "int", "default": 10}],
+        "outputs": [{"name": "fisher", "label": "Fisher"}, {"name": "signal", "label": "Signal line"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "qqe": {
+        "id": "qqe", "label": "QQE", "description": "Quantitative Qualitative Estimation — RSI-based with trailing signals",
+        "params": [{"name": "period", "type": "int", "default": 14}, {"name": "smooth", "type": "int", "default": 5}, {"name": "factor", "type": "float", "default": 4.236}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "squeeze": {
+        "id": "squeeze", "label": "Squeeze", "description": "TTM Squeeze — identifies Bollinger/Keltner compression followed by momentum",
+        "params": [{"name": "bb_period", "type": "int", "default": 20}, {"name": "kc_period", "type": "int", "default": 20}, {"name": "kc_mult", "type": "float", "default": 1.5}],
+        "outputs": [{"name": "squeeze_on", "label": "Squeeze (bool)"}, {"name": "momentum", "label": "Momentum histogram"}],
+        "ops": ["eq"]
+      },
+      "aroon": {
+        "id": "aroon", "label": "Aroon", "description": "Aroon Up/Down — trend strength and direction since N-period high/low",
+        "params": [{"name": "period", "type": "int", "default": 25}],
+        "outputs": [{"name": "aroon_up", "label": "Aroon Up"}, {"name": "aroon_down", "label": "Aroon Down"}, {"name": "aroon_osc", "label": "Aroon Oscillator"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "aroon_osc": {
+        "id": "aroon_osc", "label": "Aroon Oscillator", "description": "Aroon Up - Aroon Down. Positive = uptrend, Negative = downtrend",
+        "params": [{"name": "period", "type": "int", "default": 25}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "apo": {
+        "id": "apo", "label": "APO", "description": "Absolute Price Oscillator — (fast EMA - slow EMA) as absolute value",
+        "params": [{"name": "fast", "type": "int", "default": 12}, {"name": "slow", "type": "int", "default": 26}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "ppo": {
+        "id": "ppo", "label": "PPO", "description": "Percentage Price Oscillator — ((fast EMA - slow EMA) / slow EMA) * 100",
+        "params": [{"name": "fast", "type": "int", "default": 12}, {"name": "slow", "type": "int", "default": 26}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "bop": {
+        "id": "bop", "label": "Balance of Power", "description": "BoP = (close - open) / (high - low) — measures buyer/seller strength per bar",
+        "params": [],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "er": {
+        "id": "er", "label": "Efficiency Ratio", "description": "Kaufman Efficiency Ratio — directionality / noise ratio (0=random, 1=perfectly trending)",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "cmo": {
+        "id": "cmo", "label": "Chande Momentum Oscillator", "description": "CMO = (sum of gains - sum of losses) / (sum of gains + sum of losses) * 100",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "rsx": {
+        "id": "rsx", "label": "RSX", "description": "Relative Strength Xtra — Jurik-enhanced RSI with reduced noise",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "rvgi": {
+        "id": "rvgi", "label": "Relative Vigor Index", "description": "RVI = (close - open) / (high - low) smoothed — momentum/divergence",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "outputs": [{"name": "rvgi", "label": "RVI"}, {"name": "signal", "label": "Signal line"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "smi": {
+        "id": "smi", "label": "SMI Ergodic", "description": "Stochastic Momentum Index — momentum oscillator centered around zero",
+        "params": [{"name": "fast_period", "type": "int", "default": 5}, {"name": "slow_period", "type": "int", "default": 20}, {"name": "signal_period", "type": "int", "default": 5}],
+        "outputs": [{"name": "smi", "label": "SMI"}, {"name": "signal", "label": "Signal line"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "stc": {
+        "id": "stc", "label": "Schaff Trend Cycle", "description": "MACD-based cycle indicator — identifies trend direction with cycle timing",
+        "params": [{"name": "fast", "type": "int", "default": 12}, {"name": "slow", "type": "int", "default": 26}, {"name": "cycle", "type": "int", "default": 10}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "tmo": {
+        "id": "tmo", "label": "True Momentum Oscillator", "description": "Double-smoothed momentum with pre-filter to reduce noise",
+        "params": [{"name": "period", "type": "int", "default": 14}, {"name": "smooth", "type": "int", "default": 5}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "uo": {
+        "id": "uo", "label": "Ultimate Oscillator", "description": "Multi-period weighted oscillator minimizing whipsaws",
+        "params": [{"name": "period1", "type": "int", "default": 7}, {"name": "period2", "type": "int", "default": 14}, {"name": "period3", "type": "int", "default": 28}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      }
+    }
+  },
+  "volatility_extra": {
+    "id": "volatility_extra",
+    "label": "Volatility (Extended)",
+    "description": "Additional volatility and channel indicators",
+    "icon": "🌊",
+    "indicators": {
+      "donchian": {
+        "id": "donchian", "label": "Donchian Channel", "description": "N-period highest high / lowest low channel — breakout detection",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "outputs": [{"name": "upper", "label": "Upper channel"}, {"name": "lower", "label": "Lower channel"}, {"name": "mid", "label": "Middle channel"}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above_upper", "price_below_lower"]
+      },
+      "chandelier_exit": {
+        "id": "chandelier_exit", "label": "Chandelier Exit", "description": "Volatility-based trailing stop — N-period high/low - ATR * multiplier",
+        "params": [{"name": "period", "type": "int", "default": 22}, {"name": "multiplier", "type": "float", "default": 3.0}],
+        "outputs": [{"name": "long_stop", "label": "Long exit"}, {"name": "short_stop", "label": "Short exit"}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above_long_stop", "price_below_short_stop"]
+      },
+      "ulcer_index": {
+        "id": "ulcer_index", "label": "Ulcer Index", "description": "Downside volatility measure — % depth and duration of drawdowns",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "mass_index": {
+        "id": "mass_index", "label": "Mass Index", "description": "Range expansion index — identifies trend reversals based on high-low width",
+        "params": [{"name": "period", "type": "int", "default": 25}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "rvi": {
+        "id": "rvi", "label": "Relative Volatility Index", "description": "Standard deviation of returns normalized as RSI-style oscillator",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "accbands": {
+        "id": "accbands", "label": "Acceleration Bands", "description": "Bands around SMA based on (high/low) * (1 + factor) — breakout detection",
+        "params": [{"name": "period", "type": "int", "default": 20}, {"name": "factor", "type": "float", "default": 0.001}],
+        "outputs": [{"name": "upper", "label": "Upper band"}, {"name": "lower", "label": "Lower band"}, {"name": "mid", "label": "Middle band"}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above_upper", "price_below_lower"]
+      },
+      "thermo": {
+        "id": "thermo", "label": "Elder's Thermometer", "description": "Volatility measure — high-low range compared to its own moving average",
+        "params": [{"name": "period", "type": "int", "default": 20}, {"name": "lookback", "type": "int", "default": 5}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "natr": {
+        "id": "natr", "label": "NATR", "description": "Normalized Average True Range — ATR / close * 100, volatility as %",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "hwc": {
+        "id": "hwc", "label": "Holt-Winter Channel", "description": "Exponential smoothing channel — trend + seasonality + level",
+        "params": [{"name": "alpha", "type": "float", "default": 0.3}, {"name": "beta", "type": "float", "default": 0.1}, {"name": "gamma", "type": "float", "default": 0.1}],
+        "outputs": [{"name": "upper", "label": "Upper"}, {"name": "lower", "label": "Lower"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      }
+    }
+  },
+  "volume_extra": {
+    "id": "volume_extra",
+    "label": "Volume (Extended)",
+    "description": "Extended volume analysis indicators",
+    "icon": "📉",
+    "indicators": {
+      "cmf": {
+        "id": "cmf", "label": "Chaikin Money Flow", "description": "Money Flow Volume over N periods — buying/selling pressure",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "efi": {
+        "id": "efi", "label": "Elder's Force Index", "description": "Force = volume * (close - close[-1]) — momentum with volume confirmation",
+        "params": [{"name": "period", "type": "int", "default": 13}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "eom": {
+        "id": "eom", "label": "Ease of Movement", "description": "EoM = ((high + low)/2 - (prev_high + prev_low)/2) / (volume / (high - low))",
+        "params": [{"name": "period", "type": "int", "default": 14}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "kvo": {
+        "id": "kvo", "label": "Klinger Volume Oscillator", "description": "Volume force indicator comparing short/long volume trends",
+        "params": [{"name": "fast_period", "type": "int", "default": 34}, {"name": "slow_period", "type": "int", "default": 55}],
+        "outputs": [{"name": "kvo", "label": "KVO"}, {"name": "signal", "label": "Signal line"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "nvi": {
+        "id": "nvi", "label": "Negative Volume Index", "description": "Tracks price changes on down-volume days — smart money indicator",
+        "params": [{"name": "period", "type": "int", "default": 255}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "pvi": {
+        "id": "pvi", "label": "Positive Volume Index", "description": "Tracks price changes on up-volume days — retail money indicator",
+        "params": [{"name": "period", "type": "int", "default": 255}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "adosc": {
+        "id": "adosc", "label": "A/D Oscillator", "description": "Chaikin A/D line oscillator — EMA fast/slow of A/D line",
+        "params": [{"name": "fast_period", "type": "int", "default": 3}, {"name": "slow_period", "type": "int", "default": 10}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "aobv": {
+        "id": "aobv", "label": "Archer OBV", "description": "OBV trends with 2 moving averages + long/short run detection",
+        "params": [{"name": "fast", "type": "int", "default": 5}, {"name": "slow", "type": "int", "default": 20}, {"name": "mamode", "type": "select", "options": ["sma", "ema"], "default": "ema"}],
+        "outputs": [{"name": "obv", "label": "OBV"}, {"name": "obv_sma", "label": "OBV MA"}, {"name": "long_run", "label": "Long run (bool)"}, {"name": "short_run", "label": "Short run (bool)"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "vfi": {
+        "id": "vfi", "label": "Volume Flow Indicator", "description": "Volume-weighted price flow with threshold filtering",
+        "params": [{"name": "period", "type": "int", "default": 130}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "vp": {
+        "id": "vp", "label": "Volume Profile", "description": "Volume at price levels — identifies high-volume nodes, value area",
+        "params": [{"name": "rows", "type": "int", "default": 12}],
+        "outputs": [{"name": "poc", "label": "Point of Control"}, {"name": "value_area_high", "label": "VA High"}, {"name": "value_area_low", "label": "VA Low"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      }
+    }
+  },
+  "statistics_extra": {
+    "id": "statistics_extra",
+    "label": "Statistics (Extended)",
+    "description": "Extended statistical analysis indicators",
+    "icon": "📐",
+    "indicators": {
+      "beta": {
+        "id": "beta", "label": "Beta", "description": "Systematic risk vs benchmark — covariance/variance over N periods",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "variance": {
+        "id": "variance", "label": "Variance", "description": "Price variance over N periods — statistical dispersion measure",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "tsf": {
+        "id": "tsf", "label": "Time Series Forecast", "description": "Linear regression endpoint — predicts next bar's value",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"], "comparisons": ["price_above", "price_below"]
+      },
+      "linearreg_angle": {
+        "id": "linearreg_angle", "label": "LinReg Angle", "description": "Slope angle of linear regression line in degrees",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "linearreg_slope": {
+        "id": "linearreg_slope", "label": "LinReg Slope", "description": "Slope of linear regression line — trend steepness",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "linearreg_intercept": {
+        "id": "linearreg_intercept", "label": "LinReg Intercept", "description": "Intercept of linear regression line",
+        "params": [{"name": "period", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      }
+    }
+  },
+  "cycles": {
+    "id": "cycles",
+    "label": "Cycle Indicators",
+    "description": "Hilbert Transform and cycle-based indicators",
+    "icon": "🔄",
+    "indicators": {
+      "ht_dcperiod": {
+        "id": "ht_dcperiod", "label": "HT Dominant Cycle", "description": "Hilbert Transform — dominant cycle period at current bar",
+        "params": [],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "ht_dcphase": {
+        "id": "ht_dcphase", "label": "HT Cycle Phase", "description": "Hilbert Transform — dominant cycle phase (-180 to +180)",
+        "params": [],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "ht_sine": {
+        "id": "ht_sine", "label": "HT Sine Wave", "description": "Hilbert Transform — sine + lead sine for cycle timing",
+        "params": [],
+        "outputs": [{"name": "sine", "label": "Sine"}, {"name": "lead_sine", "label": "Lead sine"}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "ht_trendmode": {
+        "id": "ht_trendmode", "label": "HT Trend Mode", "description": "Hilbert Transform — trend vs cycle mode indicator (1=trend, 0=cycle)",
+        "params": [],
+        "ops": ["eq"]
+      },
+      "ebsw": {
+        "id": "ebsw", "label": "Even Better Sinewave", "description": "Ehlers' EBSW — smoother sinewave indicator for cycle identification",
+        "params": [{"name": "period", "type": "int", "default": 10}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      }
+    }
+  },
+  "smc_structure": {
+    "id": "smc_structure",
+    "label": "Smart Money / Market Structure",
+    "description": "Institutional trading concepts: BOS, CHoCH, FVG, Order Blocks, Liquidity",
+    "icon": "🏦",
+    "indicators": {
+      "bos": {
+        "id": "bos", "label": "Break of Structure (BOS)", "description": "Price breaks previous swing point in current trend direction. Bullish: new HH. Bearish: new LL.",
+        "params": [{"name": "lookback", "type": "int", "default": 10}],
+        "outputs": [{"name": "bos", "label": "BOS (1=bullish, -1=bearish, 0=none)"}],
+        "ops": ["eq"]
+      },
+      "choch": {
+        "id": "choch", "label": "Change of Character (CHoCH)", "description": "First structural break against the current trend. Bullish CHoCH: higher low after downtrend.",
+        "params": [{"name": "lookback", "type": "int", "default": 10}],
+        "outputs": [{"name": "choch", "label": "CHoCH (1=bullish, -1=bearish, 0=none)"}],
+        "ops": ["eq"]
+      },
+      "mss": {
+        "id": "mss", "label": "Market Structure Shift (MSS)", "description": "Confirmed CHoCH with displacement — aggressive move showing institutional conviction",
+        "params": [{"name": "lookback", "type": "int", "default": 15}, {"name": "displacement_atr", "type": "float", "default": 1.5}],
+        "ops": ["eq"]
+      },
+      "order_block": {
+        "id": "order_block", "label": "Order Block (OB)", "description": "Last opposing candle before impulsive move — zone of institutional orders",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "outputs": [{"name": "ob_bullish", "label": "Bullish OB detected"}, {"name": "ob_bearish", "label": "Bearish OB detected"}],
+        "ops": ["eq"]
+      },
+      "fvg": {
+        "id": "fvg", "label": "Fair Value Gap (FVG)", "description": "3-candle imbalance: gap between 1st high and 3rd low (bullish) or 1st low and 3rd high (bearish)",
+        "params": [{"name": "lookback", "type": "int", "default": 30}],
+        "outputs": [{"name": "fvg_bullish", "label": "Bullish FVG"}, {"name": "fvg_bearish", "label": "Bearish FVG"}, {"name": "fvg_mitigated", "label": "Mitigated FVG"}],
+        "ops": ["eq"]
+      },
+      "liquidity_pool": {
+        "id": "liquidity_pool", "label": "Liquidity Pool", "description": "BSL (Buy-side liquidity above highs) or SSL (Sell-side below lows) — stops + limit clusters",
+        "params": [{"name": "lookback", "type": "int", "default": 20}, {"name": "min_touches", "type": "int", "default": 2}],
+        "ops": ["eq"]
+      },
+      "liquidity_void": {
+        "id": "liquidity_void", "label": "Liquidity Void", "description": "Price range with very few trades — rapid price movement zone, likely to retrace",
+        "params": [{"name": "lookback", "type": "int", "default": 30}, {"name": "candle_threshold", "type": "int", "default": 3}],
+        "ops": ["eq"]
+      },
+      "amd_cycle": {
+        "id": "amd_cycle", "label": "AMD Cycle", "description": "Accumulation / Manipulation / Distribution — 3-phase institutional cycle",
+        "params": [{"name": "lookback", "type": "int", "default": 50}],
+        "outputs": [{"name": "phase", "label": "Phase (0=acc, 1=manip, 2=dist)"}],
+        "ops": ["eq"]
+      },
+      "bsl_hunt": {
+        "id": "bsl_hunt", "label": "Liquidity Sweep / Stop Hunt", "description": "Sharp move through BSL/SSL level followed by immediate reversal",
+        "params": [{"name": "lookback", "type": "int", "default": 10}, {"name": "wick_body_ratio", "type": "float", "default": 2.0}],
+        "ops": ["eq"]
+      },
+      "market_regime": {
+        "id": "market_regime", "label": "Market Regime", "description": "Current market regime: 1=trending, 2=ranging, 3=volatile/crisis. Based on multi-factor model.",
+        "params": [{"name": "lookback", "type": "int", "default": 50}],
+        "ops": ["eq"]
+      }
+    }
+  },
+  "divergence": {
+    "id": "divergence",
+    "label": "Divergence Detection",
+    "description": "Divergence between price and indicator — reversal and continuation signals",
+    "icon": "🔀",
+    "indicators": {
+      "rsi_divergence": {
+        "id": "rsi_divergence", "label": "RSI Divergence", "description": "Price vs RSI: regular (reversal) + hidden (continuation), both bullish/bearish",
+        "params": [{"name": "rsi_period", "type": "int", "default": 14}, {"name": "lookback", "type": "int", "default": 50}],
+        "outputs": [{"name": "regular_bullish", "label": "Regular bullish divergence"}, {"name": "regular_bearish", "label": "Regular bearish divergence"}, {"name": "hidden_bullish", "label": "Hidden bullish divergence"}, {"name": "hidden_bearish", "label": "Hidden bearish divergence"}],
+        "ops": ["eq"]
+      },
+      "macd_divergence": {
+        "id": "macd_divergence", "label": "MACD Divergence", "description": "Price vs MACD histogram — regular + hidden divergence detection",
+        "params": [{"name": "fast", "type": "int", "default": 12}, {"name": "slow", "type": "int", "default": 26}, {"name": "signal", "type": "int", "default": 9}, {"name": "lookback", "type": "int", "default": 50}],
+        "ops": ["eq"]
+      },
+      "stoch_divergence": {
+        "id": "stoch_divergence", "label": "Stochastic Divergence", "description": "Price vs Stochastic %K — regular + hidden divergence detection",
+        "params": [{"name": "period", "type": "int", "default": 14}, {"name": "lookback", "type": "int", "default": 50}],
+        "ops": ["eq"]
+      },
+      "obv_divergence": {
+        "id": "obv_divergence", "label": "OBV Divergence", "description": "Price vs OBV — volume divergence (price up, OBV down = weakness)",
+        "params": [{"name": "lookback", "type": "int", "default": 50}],
+        "ops": ["eq"]
+      },
+      "smt_divergence": {
+        "id": "smt_divergence", "label": "SMT Divergence", "description": "Smart Money Technique — structural disagreement between correlated instruments (e.g. BTC vs ETH, NQ vs ES)",
+        "params": [{"name": "symbol_pair", "type": "string", "description": "Correlated symbol to compare"}, {"name": "lookback", "type": "int", "default": 50}],
+        "outputs": [{"name": "regular_bullish", "label": "Regular bullish SMT"}, {"name": "regular_bearish", "label": "Regular bearish SMT"}, {"name": "hidden_bullish", "label": "Hidden bullish SMT"}, {"name": "hidden_bearish", "label": "Hidden bearish SMT"}],
+        "ops": ["eq"]
+      }
+    }
+  },
+  "microstructure": {
+    "id": "microstructure",
+    "label": "Market Microstructure",
+    "description": "Order flow, bid/ask analysis, and microstructure metrics",
+    "icon": "🔬",
+    "indicators": {
+      "order_flow_imbalance": {
+        "id": "order_flow_imbalance", "label": "Order Flow Imbalance (OFI)", "description": "Net pressure at best bid/offer — differential of quote sizes and prices",
+        "params": [{"name": "window", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "effective_spread": {
+        "id": "effective_spread", "label": "Effective Spread (Roll)", "description": "Serial covariance of price changes — estimates effective bid-ask spread",
+        "params": [{"name": "window", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "realized_volatility": {
+        "id": "realized_volatility", "label": "Realized Volatility", "description": "Annualized standard deviation of log returns over N periods",
+        "params": [{"name": "window", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "realized_implied_ratio": {
+        "id": "realized_implied_ratio", "label": "RV/IV Ratio", "description": "Ratio of realized to implied volatility — over/under pricing of options",
+        "params": [{"name": "window", "type": "int", "default": 20}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      },
+      "correlation_cluster": {
+        "id": "correlation_cluster", "label": "Cross-Asset Correlation", "description": "Rolling correlation between current symbol and reference symbol/benchmark",
+        "params": [{"name": "symbol", "type": "string", "description": "Reference symbol"}, {"name": "period", "type": "int", "default": 30}],
+        "ops": ["gt", "gte", "lt", "lte"]
+      }
+    }
+  },
+  "visual_chart_patterns": {
+    "id": "visual_chart_patterns",
+    "label": "Chart Patterns",
+    "description": "Extended chart pattern detection beyond basic H&S and Double Tops",
+    "icon": "🔍",
+    "indicators": {
+      "ascending_triangle": {
+        "id": "ascending_triangle", "label": "Ascending Triangle", "description": "Flat resistance + rising support — bullish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 30}],
+        "ops": ["eq"]
+      },
+      "descending_triangle": {
+        "id": "descending_triangle", "label": "Descending Triangle", "description": "Flat support + falling resistance — bearish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 30}],
+        "ops": ["eq"]
+      },
+      "symmetrical_triangle": {
+        "id": "symmetrical_triangle", "label": "Symmetrical Triangle", "description": "Converging trendlines — volatility contraction, breakout direction unknown",
+        "params": [{"name": "lookback", "type": "int", "default": 30}],
+        "ops": ["eq"]
+      },
+      "bull_flag": {
+        "id": "bull_flag", "label": "Bull Flag", "description": "Sharp uptrend (pole) + shallow pullback (flag) — bullish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "ops": ["eq"]
+      },
+      "bear_flag": {
+        "id": "bear_flag", "label": "Bear Flag", "description": "Sharp downtrend (pole) + shallow bounce (flag) — bearish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "ops": ["eq"]
+      },
+      "bullish_pennant": {
+        "id": "bullish_pennant", "label": "Bullish Pennant", "description": "Sharp move + converging triangle (pennant) — bullish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "ops": ["eq"]
+      },
+      "bearish_pennant": {
+        "id": "bearish_pennant", "label": "Bearish Pennant", "description": "Sharp move + converging triangle (pennant) — bearish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "ops": ["eq"]
+      },
+      "falling_wedge": {
+        "id": "falling_wedge", "label": "Falling Wedge", "description": "Converging downward slopes — typically bullish reversal",
+        "params": [{"name": "lookback", "type": "int", "default": 30}],
+        "ops": ["eq"]
+      },
+      "rising_wedge": {
+        "id": "rising_wedge", "label": "Rising Wedge", "description": "Converging upward slopes — typically bearish reversal",
+        "params": [{"name": "lookback", "type": "int", "default": 30}],
+        "ops": ["eq"]
+      },
+      "double_top": {
+        "id": "double_top", "label": "Double Top", "description": "Two peaks ≈ same level — bearish reversal (extended params)",
+        "params": [{"name": "lookback", "type": "int", "default": 40}, {"name": "tolerance_pct", "type": "float", "default": 0.5}],
+        "ops": ["eq"]
+      },
+      "double_bottom": {
+        "id": "double_bottom", "label": "Double Bottom", "description": "Two troughs ≈ same level — bullish reversal (extended params)",
+        "params": [{"name": "lookback", "type": "int", "default": 40}, {"name": "tolerance_pct", "type": "float", "default": 0.5}],
+        "ops": ["eq"]
+      },
+      "triple_top": {
+        "id": "triple_top", "label": "Triple Top", "description": "Three peaks ≈ same level — stronger bearish reversal than double top",
+        "params": [{"name": "lookback", "type": "int", "default": 50}, {"name": "tolerance_pct", "type": "float", "default": 0.5}],
+        "ops": ["eq"]
+      },
+      "triple_bottom": {
+        "id": "triple_bottom", "label": "Triple Bottom", "description": "Three troughs ≈ same level — stronger bullish reversal than double bottom",
+        "params": [{"name": "lookback", "type": "int", "default": 50}, {"name": "tolerance_pct", "type": "float", "default": 0.5}],
+        "ops": ["eq"]
+      },
+      "cup_handle": {
+        "id": "cup_handle", "label": "Cup & Handle", "description": "Gradual U-shaped bottom + slight pullback (handle) — bullish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 60}],
+        "ops": ["eq"]
+      },
+      "inverse_cup_handle": {
+        "id": "inverse_cup_handle", "label": "Inverse Cup & Handle", "description": "Gradual U-shaped top + slight bounce (handle) — bearish continuation",
+        "params": [{"name": "lookback", "type": "int", "default": 60}],
+        "ops": ["eq"]
+      },
+      "rounding_bottom": {
+        "id": "rounding_bottom", "label": "Rounding Bottom", "description": "Gradual U-shaped reversal from downtrend to uptrend",
+        "params": [{"name": "lookback", "type": "int", "default": 60}],
+        "ops": ["eq"]
+      },
+      "rounding_top": {
+        "id": "rounding_top", "label": "Rounding Top", "description": "Gradual inverted-U reversal from uptrend to downtrend",
+        "params": [{"name": "lookback", "type": "int", "default": 60}],
+        "ops": ["eq"]
+      },
+      "v_top": {
+        "id": "v_top", "label": "V-Top (Spike Top)", "description": "Sharp parabolic up followed by immediate reversal down",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "ops": ["eq"]
+      },
+      "v_bottom": {
+        "id": "v_bottom", "label": "V-Bottom (Spike Bottom)", "description": "Sharp selloff followed by immediate reversal up",
+        "params": [{"name": "lookback", "type": "int", "default": 20}],
+        "ops": ["eq"]
+      },
+      "kill_zone": {
+        "id": "kill_zone", "label": "Kill Zone", "description": "Session timing filter — identifies high-probability trading windows",
+        "params": [{"name": "session", "type": "select", "options": ["london_open", "ny_open", "london_ny_overlap", "asian_open", "silver_bullet"], "default": "london_ny_overlap"}],
+        "ops": ["eq"]
+      }
+    }
+  }
+}

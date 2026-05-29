@@ -26,10 +26,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class IndicatorParam(BaseModel):
+    name: str
+    params: dict = {}
+
+class IndicatorComputeRequest(BaseModel):
+    exchange: str
+    symbol: str
+    timeframe: str
+    indicators: list[IndicatorParam]
+    limit: int = 500
+
+
 class FilterCondition(BaseModel):
     metric: str
     op: str
-    value: float
+    value: float | str = 0.0
     params: dict = {}
     output: str = ""
 
@@ -53,6 +65,7 @@ class EdgeSearchRequest(BaseModel):
     walk_windows: int = 5
     walk_train_pct: float = 0.7
     monte_carlo_shuffles: int = 0
+    orders: list[dict] = []  # optional order config for state machine simulation
 
 
 class SweepParam(BaseModel):
@@ -437,6 +450,43 @@ def _compute_indicators(candles):
     alias["di_plus"] = "adx_14"
     alias["di_minus"] = "adx_14"
 
+    # ── Ichimoku Cloud ──
+    # Tenkan-sen (9): (rolling_max(high,9) + rolling_min(low,9)) / 2
+    # Kijun-sen (26): (rolling_max(high,26) + rolling_min(low,26)) / 2
+    # Senkou A: (tenkan + kijun) / 2  (normally shifted +26, kept aligned for backtest)
+    # Senkou B (52): (rolling_max(high,52) + rolling_min(low,52)) / 2 (kept aligned)
+    # Chikou: close shifted back 26 bars (close[i-26]), NaN for first 26 bars
+    def _rolling_max(arr, period):
+        out = np.empty_like(arr)
+        for i in range(len(arr)):
+            out[i] = np.max(arr[max(0, i-period+1):i+1])
+        return out
+    def _rolling_min(arr, period):
+        out = np.empty_like(arr)
+        for i in range(len(arr)):
+            out[i] = np.min(arr[max(0, i-period+1):i+1])
+        return out
+
+    ichi_tenkan = (_rolling_max(high, 9) + _rolling_min(low, 9)) / 2.0
+    ichi_kijun = (_rolling_max(high, 26) + _rolling_min(low, 26)) / 2.0
+    ichi_senkou_a = (ichi_tenkan + ichi_kijun) / 2.0
+    ichi_senkou_b = (_rolling_max(high, 52) + _rolling_min(low, 52)) / 2.0
+    # Chikou: close shifted 26 bars back (for "chikou above current kijun" comparisons)
+    ichi_chikou = np.roll(close, 26)
+    ichi_chikou[:26] = np.nan
+
+    _store("ichimoku_tenkan_9", ichi_tenkan, "ichimoku_tenkan")
+    _store("ichimoku_kijun_26", ichi_kijun, "ichimoku_kijun")
+    _store("ichimoku_senkou_a", ichi_senkou_a, "ichimoku_senkou_a")
+    _store("ichimoku_senkou_b", ichi_senkou_b, "ichimoku_senkou_b")
+    _store("ichimoku_chikou_26", ichi_chikou, "ichimoku_chikou")
+
+    alias["tenkan"] = "ichimoku_tenkan_9"
+    alias["kijun"] = "ichimoku_kijun_26"
+    alias["senkou_a"] = "ichimoku_senkou_a"
+    alias["senkou_b"] = "ichimoku_senkou_b"
+    alias["chikou"] = "ichimoku_chikou_26"
+
     ind["__alias__"] = alias
     return ind
 
@@ -457,11 +507,18 @@ def _compute_indicator_on_demand(metric, params, high, low, close, volume, n):
 
 def _to_list(arr, n):
     import numpy as np
+    import math
     if hasattr(arr, 'shape'):
-        return arr.tolist()
+        result = arr.tolist()
+        # Replace NaN/Inf with None for JSON safety
+        if isinstance(result, list):
+            for i in range(len(result)):
+                if isinstance(result[i], float) and (math.isnan(result[i]) or math.isinf(result[i])):
+                    result[i] = None
+        return result
     if isinstance(arr, (list, tuple)):
-        return list(arr)
-    return [float(arr)] * n if n else []
+        return [None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v for v in arr]
+    return [None if (isinstance(arr, float) and (math.isnan(arr) or math.isinf(arr))) else float(arr)] * n if n else []
 
 
 def _fetch_and_prepare(exchange, symbol, timeframe, start_time, end_time):
@@ -539,28 +596,61 @@ def _resolve_indicator(cond, indicators):
     return None
 
 
-def _eval_cond(cond, candles, pctls, indicators, i):
+def _resolve_value(metric_or_ref, candles, pctls, indicators, i, params=None):
+    """Resolve a metric name or indicator reference to a numeric value at index i."""
     c = candles[i]
-    if cond.metric.startswith("pctl_"):
-        base = cond.metric[5:]
-        if base not in pctls:
-            return False
-        val = pctls[base][i]
-    elif cond.metric in c["metrics"]:
-        val = c["metrics"][cond.metric]
-    elif indicators:
-        arr = _resolve_indicator(cond, indicators)
-        if arr is None:
-            return False
-        val = arr[i]
-    else:
+    raw_price_map = {"open": "o", "high": "h", "low": "l", "close": "c", "volume": "v"}
+    if metric_or_ref in raw_price_map:
+        return c[raw_price_map[metric_or_ref]]
+    if metric_or_ref in c["metrics"]:
+        return c["metrics"][metric_or_ref]
+    if metric_or_ref.startswith("pctl_") and metric_or_ref[5:] in pctls:
+        return pctls[metric_or_ref[5:]][i]
+    if indicators:
+        arr = indicators.get(metric_or_ref)
+        if arr is not None:
+            return arr[i]
+        alias = indicators.get("__alias__", {})
+        key = alias.get(metric_or_ref, metric_or_ref)
+        arr = indicators.get(key)
+        if arr is not None:
+            return arr[i]
+        # Try building key from params (e.g. rsi + {period:7} → rsi_7)
+        if params:
+            vals = [str(v) for v in params.values()]
+            trial = f"{metric_or_ref}_{'_'.join(vals)}"
+            arr = indicators.get(trial)
+            if arr is not None:
+                return arr[i]
+            trial_key = alias.get(trial, trial)
+            arr = indicators.get(trial_key)
+            if arr is not None:
+                return arr[i]
+        # Try on-demand computation
+        raw = indicators.get("__raw__")
+        if raw is not None:
+            n = len(next(iter(raw.values())))
+            result = _compute_indicator_on_demand(metric_or_ref, params or {}, raw["high"], raw["low"], raw["close"], raw["volume"], n)
+            if result is not None:
+                return result[i]
+    return None
+
+
+def _eval_cond(cond, candles, pctls, indicators, i):
+    val = _resolve_value(cond.metric, candles, pctls, indicators, i, cond.params)
+    if val is None:
         return False
-    if cond.op == "gt":    return val > cond.value
-    if cond.op == "gte":   return val >= cond.value
-    if cond.op == "lt":    return val < cond.value
-    if cond.op == "lte":   return val <= cond.value
-    if cond.op == "eq":    return abs(val - cond.value) < 1e-9
-    if cond.op == "neq":   return abs(val - cond.value) >= 1e-9
+    rhs = cond.value
+    if isinstance(rhs, str):
+        rhs_val = _resolve_value(rhs, candles, pctls, indicators, i)
+        if rhs_val is not None:
+            rhs = rhs_val
+    if cond.op == "gt":    return val > rhs
+    if cond.op == "gte":   return val >= rhs
+    if cond.op == "lt":    return val < rhs
+    if cond.op == "lte":   return val <= rhs
+    if cond.op == "eq":    return abs(val - rhs) < 1e-9
+    if cond.op == "neq":   return abs(val - rhs) >= 1e-9
     return False
 
 
@@ -596,6 +686,87 @@ def _forward_returns(candles, indices, lookahead):
         ret = (candles[j]["c"] - candles[i]["c"]) / candles[i]["c"] * 100
         results.append({"i": i, "entry_t": candles[i]["t"], "entry": candles[i]["c"],
                         "exit_t": candles[j]["t"], "exit": candles[j]["c"], "ret": ret})
+    return results
+
+
+def _forward_returns_with_state_machine(candles, indices, lookahead, orders, direction):
+    """Simulate forward returns using Rust state machine for given order types."""
+    import vibe_engine
+    closes = [c["c"] for c in candles]
+    highs = [c["h"] for c in candles]
+    lows = [c["l"] for c in candles]
+    opens = [c["o"] for c in candles]
+    volumes = [c["v"] for c in candles]
+    la = max(1, lookahead)
+
+    results = []
+    for i in indices:
+        if i + 1 >= len(candles):
+            continue
+        end_bar = min(i + la, len(candles) - 1)
+        # Determine which order to simulate
+        ot = orders[0].get("type", "market") if orders else "market"
+        if ot in ("market", "limit", "stop_market", "stop_limit", "sl", "tp", "ts"):
+            # Simple order: use standard forward return at lookahead
+            # (state machine for simple orders = immediate fill, use lookahead exit)
+            exit_price = candles[end_bar]["c"]
+            entry_price = candles[i]["c"]
+            ret = (exit_price - entry_price) / entry_price * 100
+            if direction == "short":
+                ret = -ret
+            results.append({
+                "i": i,
+                "entry_t": candles[i]["t"],
+                "entry": entry_price,
+                "exit_t": candles[end_bar]["t"],
+                "exit": exit_price,
+                "ret": ret,
+            })
+        else:
+            # Custom order: run state machine simulation bounded by lookahead
+            state_model = '{"states": ["idle", "executed"], "transitions": [{"from": "idle", "to": "executed", "trigger": "immediate"}]}'
+            order_params = "{}"
+            try:
+                from custom_types.registry import get_order_type_definitions
+                defs = get_order_type_definitions()
+                for d in defs:
+                    if d["id"] == ot:
+                        sm = d.get("state_model", {})
+                        state_model = json.dumps(sm)
+                        order_params = json.dumps(orders[0].get("params", {}))
+                        break
+            except Exception:
+                pass
+
+            # Run SM on full data but limit iteration by slicing to end_bar+1
+            slice_end = end_bar + 1
+            result = vibe_engine.run_state_machine_order(
+                opens[:slice_end], highs[:slice_end], lows[:slice_end],
+                closes[:slice_end], volumes[:slice_end],
+                "custom",
+                state_model,
+                order_params,
+                i, closes[i]
+            )
+            if result and len(result) == 6:
+                raw_exit_bar = int(result[1])
+                exit_bar = raw_exit_bar if raw_exit_bar > i else end_bar
+                if exit_bar >= len(candles):
+                    exit_bar = len(candles) - 1
+                entry_price = result[2]
+                exit_price = result[3] if result[3] != entry_price else candles[exit_bar]["c"]
+                ret = (exit_price - entry_price) / entry_price * 100
+                if direction == "short":
+                    ret = -ret
+                results.append({
+                    "i": i,
+                    "entry_t": candles[i]["t"],
+                    "entry": entry_price,
+                    "exit_t": candles[exit_bar]["t"],
+                    "exit": exit_price,
+                    "ret": ret,
+                })
+
     return results
 
 
@@ -739,6 +910,8 @@ def _validate_conditions(groups, logic, metric_keys, pctls):
     valid_ids = {e["id"] for e in FLAT_REGISTRY}
     valid_ids.update(metric_keys)
     valid_ids.update({f"pctl_{k}" for k in metric_keys})
+    # Raw price fields that _resolve_value supports
+    valid_ids.update(["close", "high", "low", "open", "volume"])
     _funcs = _get_indicator_funcs()
 
     errors = []
@@ -770,7 +943,7 @@ def _validate_conditions(groups, logic, metric_keys, pctls):
 
 
 def _run_single_search(exchange, symbol, timeframe, start_time, end_time,
-                       groups, logic, lookahead, min_occurrences):
+                       groups, logic, lookahead, min_occurrences, orders=None):
     candles, pctls, _, indicators = _fetch_and_prepare(exchange, symbol, timeframe, start_time, end_time)
     if candles is None:
         return {"occurrences": 0, "error": "no data"}
@@ -795,7 +968,12 @@ def _run_single_search(exchange, symbol, timeframe, start_time, end_time,
             "max_drawdown": 0, "forward_returns": [], "histogram": {"bins": [], "counts": []},
         }
 
-    fwd = _forward_returns(candles, indices, lookahead)
+    # Use state machine simulation if orders are provided
+    if orders and len(orders) > 0:
+        fwd = _forward_returns_with_state_machine(candles, indices, lookahead, orders, "long")
+    else:
+        fwd = _forward_returns(candles, indices, lookahead)
+
     if not fwd:
         return {
             "occurrences": len(indices), "error": "no forward data",
@@ -816,6 +994,7 @@ async def edge_search(req: EdgeSearchRequest):
         req.exchange, req.symbol, req.timeframe,
         req.start_time, req.end_time,
         req.groups, req.logic, req.lookahead, req.min_occurrences,
+        orders=req.orders,
     )
 
     # Walk-forward
@@ -1163,44 +1342,66 @@ def _log_to_chat(role: str, content: str, detail: str = ""):
 
 async def _poll_and_send(ws: WebSocket, res_path: str, req_id: str):
     """Poll for a response file and send it over WebSocket."""
-    for _ in range(30):
+    status_sent = False
+    for i in range(60):
         await asyncio.sleep(1)
         try:
             if os.path.exists(res_path):
                 with open(res_path) as f:
                     data = json.load(f)
                 os.remove(res_path)
+                data.setdefault("_original_type", data.get("type", "message"))
                 await ws.send_json({"id": req_id, **data, "type": "response"})
                 _log_to_chat("→ Browser", json.dumps(data)[:300], detail=f"delivered_{req_id[:8]}")
                 return
         except Exception:
             pass
-    await ws.send_json({
-        "type": "timeout", "id": req_id,
-        "content": "No response yet — OpenCode needs to process this in the terminal. Talk to them there."
-    })
+        if not status_sent and i >= 5:
+            status_sent = True
+            try:
+                await ws.send_json({"type": "status", "id": req_id, "content": "⏳ L'IA réfléchit toujours... Les stratégies complexes avec Ichimoku ou plusieurs conditions peuvent prendre 30-60s."})
+            except Exception:
+                pass
+    try:
+        await ws.send_json({
+            "type": "timeout", "id": req_id,
+            "content": "⏰ L'IA n'a pas répondu après 60s. Causes possibles :\n• Limite de tokens Groq dépassée — réessaie avec une description plus courte\n• Problème réseau — vérifie ta connexion\n• L'agent agent.py n'est pas en marche — vérifie avec `screen -ls`"
+        })
+    except Exception:
+        pass
 
 
 # ── Vibe Lab chat (code-generation agent) ──
 
 
 async def _vibe_poll_and_send(ws: WebSocket, res_path: str, req_id: str):
-    for _ in range(60):
+    status_sent = False
+    for i in range(60):
         await asyncio.sleep(1)
         try:
             if os.path.exists(res_path):
                 with open(res_path) as f:
                     data = json.load(f)
                 os.remove(res_path)
+                data.setdefault("_original_type", data.get("type", "message"))
                 await ws.send_json({"id": req_id, **data, "type": "response"})
                 _log_vibe("→ Browser", json.dumps(data)[:300], detail=f"delivered_{req_id[:8]}")
                 return
         except Exception:
             pass
-    await ws.send_json({
-        "type": "timeout", "id": req_id,
-        "content": "No response yet — Vibe agent may need more time. Check that vibe-agent is running (screen -ls)",
-    })
+        if not status_sent and i >= 5:
+            status_sent = True
+            try:
+                await ws.send_json({"type": "status", "id": req_id, "content": "⏳ L'IA génère la stratégie... Les stratégies complexes peuvent prendre 30-60s."})
+            except Exception:
+                pass
+    try:
+        await ws.send_json({
+            "type": "timeout", "id": req_id,
+            "content": "⏰ L'IA n'a pas répondu après 60s. Causes possibles :\n• Limite de tokens Groq dépassée — réessaie avec une description plus courte\n• L'agent vibe-agent n'est pas en marche — vérifie avec `screen -ls`\n• Problème réseau — vérifie ta connexion"
+        })
+    except Exception:
+        pass
 
 
 @router.websocket("/ws/vibe-chat")
@@ -1363,3 +1564,147 @@ async def strategy_chat_respond(
         log_content = json.dumps(log_content, indent=2)[:500]
     _log_to_chat("OpenCode", str(log_content), detail=f"res_{rid[:8]}")
     return {"status": "ok", "id": rid}
+
+
+class IndicatorSeriesRequest(BaseModel):
+    exchange: str
+    symbol: str
+    timeframe: str
+    indicators: list[IndicatorParam]
+
+
+@router.post("/indicators/compute")
+async def compute_indicators(req: IndicatorSeriesRequest):
+    """Compute indicators for chart overlay."""
+    import numpy as np
+    import vibe_engine as ve
+
+    result = {"candles": [], "indicators": {}}
+    try:
+        pairs = get_available_pairs()
+        candles = query_candles(req.exchange, req.symbol, req.timeframe, limit=500)
+        if not candles:
+            return result
+
+        result["candles"] = [{
+            "t": c["timestamp"], "o": c["open"], "h": c["high"],
+            "l": c["low"], "c": c["close"], "v": c["volume"]
+        } for c in candles]
+
+        n = len(candles)
+        high = np.array([c["high"] for c in candles], dtype=np.float64)
+        low = np.array([c["low"] for c in candles], dtype=np.float64)
+        close = np.array([c["close"] for c in candles], dtype=np.float64)
+        volume = np.array([c["volume"] for c in candles], dtype=np.float64)
+        times = [c["timestamp"] for c in candles]
+
+        funcs = _get_indicator_funcs()
+        for ind in req.indicators:
+            name = ind.name
+            params = ind.params
+            values = None
+
+            if name in funcs:
+                try:
+                    raw = funcs[name]["func"](high, low, close, volume, params)
+                    values = _to_list(raw, n)
+                except Exception as e:
+                    result["indicators"][name] = {"error": str(e)}
+                    continue
+            elif name in ("bbands",):
+                try:
+                    period = int(params.get("period", 20))
+                    stddev = float(params.get("stddev", 2.0))
+                    u, m, l = ve.bbands(close, period, stddev)
+                    result["indicators"][f"{name}_upper"] = {
+                        "values": _to_list(u, n),
+                        "label": f"BB Upper ({period},{stddev})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#e94560"),
+                    }
+                    result["indicators"][f"{name}_middle"] = {
+                        "values": _to_list(m, n),
+                        "label": f"BB Middle ({period},{stddev})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#e94560"),
+                    }
+                    result["indicators"][f"{name}_lower"] = {
+                        "values": _to_list(l, n),
+                        "label": f"BB Lower ({period},{stddev})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#e94560"),
+                    }
+                    continue
+                except Exception as e:
+                    result["indicators"][name] = {"error": str(e)}
+                    continue
+            elif name in ("macd",):
+                try:
+                    fast = int(params.get("fast", 12))
+                    slow = int(params.get("slow", 26))
+                    signal = int(params.get("signal", 9))
+                    ml, sl, hi = ve.macd(close, fast, slow, signal)
+                    result["indicators"][f"{name}_line"] = {
+                        "values": _to_list(ml, n),
+                        "label": f"MACD ({fast},{slow},{signal})",
+                        "pane": 1, "style": "line", "color": params.get("color", "#26a69a"),
+                    }
+                    result["indicators"][f"{name}_signal"] = {
+                        "values": _to_list(sl, n),
+                        "label": "Signal",
+                        "pane": 1, "style": "line", "color": params.get("color", "#e94560"),
+                    }
+                    result["indicators"][f"{name}_histogram"] = {
+                        "values": _to_list(hi, n),
+                        "label": "Histogram",
+                        "pane": 1, "style": "histogram", "color": params.get("color", "#7b1fa2"),
+                    }
+                    continue
+                except Exception as e:
+                    result["indicators"][name] = {"error": str(e)}
+                    continue
+            elif name in ("stoch",):
+                try:
+                    period = int(params.get("period", 14))
+                    k, d = ve.stochastic(high, low, close, period)
+                    result["indicators"][f"{name}_k"] = {
+                        "values": _to_list(k, n),
+                        "label": f"%K ({period})",
+                        "pane": 1, "style": "line", "color": params.get("color", "#26a69a"),
+                    }
+                    result["indicators"][f"{name}_d"] = {
+                        "values": _to_list(d, n),
+                        "label": f"%D ({period})",
+                        "pane": 1, "style": "line", "color": params.get("color", "#e94560"),
+                    }
+                    continue
+                except Exception as e:
+                    result["indicators"][name] = {"error": str(e)}
+                    continue
+            elif name in ("adx",):
+                try:
+                    period = int(params.get("period", 14))
+                    a = ve.adx(high, low, close, period)
+                    result["indicators"][name] = {
+                        "values": _to_list(a, n),
+                        "label": f"ADX ({period})",
+                        "pane": 1, "style": "line", "color": params.get("color", "#f9a825"),
+                    }
+                    continue
+                except Exception as e:
+                    result["indicators"][name] = {"error": str(e)}
+                    continue
+
+            if values is not None:
+                label = params.get("label", name.upper())
+                pane = 1 if name in ("rsi", "cci", "mfi", "williams_r", "atr", "obv") else 0
+                if name in ("sma", "ema"):
+                    pane = 0
+                result["indicators"][name] = {
+                    "values": values,
+                    "label": f"{label} ({params.get('period', 14)})" if "period" in params else label,
+                    "pane": pane,
+                    "style": "line",
+                    "color": params.get("color", "#26a69a"),
+                }
+
+        return result
+    except Exception as e:
+        return {"error": str(e)}

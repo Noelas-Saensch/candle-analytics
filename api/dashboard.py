@@ -131,6 +131,32 @@ tr:hover { background: #16213e; }
 .cb-reset { cursor:pointer; color:#888; font-size:12px; padding:2px 6px; border:1px solid #0f3460; border-radius:3px; background:transparent; }
 .cb-reset:hover { color:#e0e0e0; border-color:#e94560; }
 
+/* Indicator toolbar */
+.ind-bar { display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 12px;background:#16213e;border-bottom:1px solid #0f3460;font-size:12px; }
+.ind-chip { display:inline-flex;align-items:center;gap:4px;background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer; }
+.ind-chip:hover { border-color:#e94560; }
+.ind-chip .dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
+.ind-chip .close { cursor:pointer;color:#ef5350;font-size:12px;margin-left:2px; }
+.ind-chip .close:hover { color:#ff1744; }
+.ind-add { background:transparent;color:#888;border:1px dashed #0f3460;border-radius:3px;padding:2px 10px;font-size:18px;cursor:pointer;line-height:1; }
+.ind-add:hover { color:#e94560;border-color:#e94560; }
+.ind-menu { display:none;position:absolute;z-index:50;background:#16213e;border:1px solid #0f3460;border-radius:4px;padding:6px;min-width:200px;font-size:12px;top:100%;left:0; }
+.ind-menu.show { display:block; }
+.ind-menu-cat { color:#888;font-size:10px;font-weight:600;padding:4px 6px 2px; }
+.ind-menu-item { padding:4px 8px;cursor:pointer;color:#e0e0e0;border-radius:3px;display:flex;align-items:center;gap:6px; }
+.ind-menu-item:hover { background:#0f3460;color:#e94560; }
+.ind-config { position:fixed;z-index:100;background:#16213e;border:1px solid #0f3460;border-radius:6px;padding:12px;min-width:280px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,0.5);top:50%;left:50%;transform:translate(-50%,-50%); }
+.ind-config h3 { color:#e94560;margin-bottom:8px;font-size:14px; }
+.ind-config label { display:flex;align-items:center;gap:6px;color:#888;margin:4px 0; }
+.ind-config input[type=number] { background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;padding:3px 6px;border-radius:3px;width:80px; }
+.ind-config input[type=color] { width:32px;height:24px;padding:0;border:none;cursor:pointer;background:transparent; }
+.ind-config select { background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;padding:3px 6px;border-radius:3px; }
+.ind-config .btn { margin-top:8px;margin-right:4px; }
+.ind-overlay { display:none;position:fixed;z-index:99;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4); }
+.ind-overlay.show { display:block; }
+.ind-pane-toggle { background:transparent;color:#555;border:none;cursor:pointer;font-size:10px;padding:0 4px; }
+.ind-pane-toggle:hover { color:#e0e0e0; }
+.ind-pane { border-top:1px solid #0f3460;margin-top:2px; }
 </style>
 </head>
 <body>
@@ -162,6 +188,13 @@ tr:hover { background: #16213e; }
     <button class="btn" id="updateBtn" onclick="updateData()">Update</button>
     <button class="btn btn-primary" id="fetchAllBtn" onclick="fetchAllData()">Fetch all</button>
   </div>
+</div>
+
+<div class="ind-bar" id="indBar">
+  <span style="color:#888;font-size:11px">Indicators:</span>
+  <span id="indChips"></span>
+  <button class="ind-add" id="indAddBtn" title="Add indicator" onclick="showIndMenu()">+</button>
+  <div class="ind-menu" id="indMenu"></div>
 </div>
 
 <div id="chart-view" class="view active">
@@ -268,6 +301,325 @@ function toggleRegression() {
     regSeries.applyOptions({ visible: true });
   } else {
     if (regSeries) { chart.removeSeries(regSeries); regSeries = null; }
+  }
+}
+
+// --- Indicator overlay management ---
+var activeIndicators = [];
+var indicatorSeries = {};
+var indicatorPanes = {};
+var nextPaneId = 1;
+
+var INDICATOR_CATALOG = {
+  "Trend": [
+    { name: "sma", label: "SMA", params: { period: 20 }, defaults: { period: 20, color: "#26a69a" } },
+    { name: "ema", label: "EMA", params: { period: 20 }, defaults: { period: 20, color: "#e94560" } },
+    { name: "bbands", label: "Bollinger Bands", params: { period: 20, stddev: 2 }, defaults: { period: 20, stddev: 2, color: "#e94560" } },
+    { name: "vwap", label: "VWAP", params: {}, defaults: { color: "#f9a825" } },
+    { name: "adx", label: "ADX", params: { period: 14 }, defaults: { period: 14, color: "#f9a825" } },
+  ],
+  "Oscillators": [
+    { name: "rsi", label: "RSI", params: { period: 14 }, defaults: { period: 14, color: "#ab47bc" } },
+    { name: "stoch", label: "Stochastic", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" } },
+    { name: "macd", label: "MACD", params: { fast: 12, slow: 26, signal: 9 }, defaults: { fast: 12, slow: 26, signal: 9, color: "#26a69a" } },
+    { name: "cci", label: "CCI", params: { period: 20 }, defaults: { period: 20, color: "#7b1fa2" } },
+    { name: "mfi", label: "MFI", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" } },
+    { name: "williams_r", label: "Williams %R", params: { period: 14 }, defaults: { period: 14, color: "#ef5350" } },
+  ],
+  "Volatility": [
+    { name: "atr", label: "ATR", params: { period: 14 }, defaults: { period: 14, color: "#ff7043" } },
+  ],
+  "Volume": [
+    { name: "obv", label: "OBV", params: {}, defaults: { color: "#42a5f5" } },
+  ],
+};
+
+function showIndMenu() {
+  var menu = document.getElementById("indMenu");
+  if (menu.classList.contains("show")) { menu.classList.remove("show"); return; }
+  var html = "";
+  for (var cat in INDICATOR_CATALOG) {
+    html += '<div class="ind-menu-cat">' + cat + "</div>";
+    for (var i = 0; i < INDICATOR_CATALOG[cat].length; i++) {
+      var ind = INDICATOR_CATALOG[cat][i];
+      html += '<div class="ind-menu-item" data-ind="' + ind.name + '">' +
+        '<span class="dot" style="background:' + ind.defaults.color + '"></span>' +
+        ind.label + "</div>";
+    }
+  }
+  menu.innerHTML = html;
+  menu.onclick = function(e) {
+    var item = e.target.closest(".ind-menu-item");
+    if (item) { addIndicator(item.dataset.ind); }
+  };
+  menu.classList.add("show");
+  setTimeout(function() {
+    document.addEventListener("click", function _close(e) {
+      if (!document.getElementById("indBar").contains(e.target)) {
+        menu.classList.remove("show");
+        document.removeEventListener("click", _close);
+      }
+    });
+  }, 10);
+}
+
+function addIndicator(name) {
+  document.getElementById("indMenu").classList.remove("show");
+  // Find catalog entry
+  var entry = null;
+  for (var cat in INDICATOR_CATALOG) {
+    for (var i = 0; i < INDICATOR_CATALOG[cat].length; i++) {
+      if (INDICATOR_CATALOG[cat][i].name === name) { entry = INDICATOR_CATALOG[cat][i]; break; }
+    }
+    if (entry) break;
+  }
+  if (!entry) return;
+  var params = JSON.parse(JSON.stringify(entry.defaults));
+  // Avoid duplicates
+  for (var j = 0; j < activeIndicators.length; j++) {
+    if (activeIndicators[j].name === name) return;
+  }
+  activeIndicators.push({ name: name, label: entry.label, params: params });
+  renderIndChips();
+  computeAndRenderIndicators();
+}
+
+function renderIndChips() {
+  var chips = document.getElementById("indChips");
+  chips.innerHTML = "";
+  for (var i = 0; i < activeIndicators.length; i++) {
+    var ind = activeIndicators[i];
+    var chip = document.createElement("span");
+    chip.className = "ind-chip";
+    chip.innerHTML =
+      '<span class="dot" style="background:' + (ind.params.color || "#26a69a") + '"></span>' +
+      ind.label +
+      ' <span class="close" onclick="event.stopPropagation();removeIndicator(' + i + ')">&times;</span>';
+    chip.onclick = function(idx) {
+      return function() { openIndicatorConfig(idx); };
+    }(i);
+    chips.appendChild(chip);
+  }
+}
+
+function removeIndicator(idx) {
+  var ind = activeIndicators[idx];
+  if (!ind) return;
+  // Remove LightweightCharts series
+  if (indicatorSeries[ind.name]) {
+    var seriesList = indicatorSeries[ind.name];
+    for (var s in seriesList) {
+      if (chart) { try { chart.removeSeries(seriesList[s]); } catch(_) {} }
+    }
+    delete indicatorSeries[ind.name];
+  }
+  // Remove pane if exists
+  if (indicatorPanes[ind.name]) {
+    // LightweightCharts 4.x doesn't support removing panes via API
+    // We just hide the pane div
+    var paneEl = document.getElementById("pane_" + ind.name);
+    if (paneEl) { paneEl.style.display = "none"; }
+    delete indicatorPanes[ind.name];
+  }
+  activeIndicators.splice(idx, 1);
+  renderIndChips();
+}
+
+function openIndicatorConfig(idx) {
+  var ind = activeIndicators[idx];
+  if (!ind) return;
+  var overlay = document.createElement("div");
+  overlay.className = "ind-overlay show";
+  overlay.id = "indConfigOverlay";
+  overlay.onclick = function() { closeIndicatorConfig(); };
+  var panel = document.createElement("div");
+  panel.className = "ind-config";
+  panel.onclick = function(e) { e.stopPropagation(); };
+  var html = '<h3>' + ind.label + '</h3>';
+  html += '<label>Color <input type="color" id="icfg_color" value="' + (ind.params.color || "#26a69a") + '"></label>';
+  if (ind.params.period !== undefined) {
+    html += '<label>Period <input type="number" id="icfg_period" value="' + ind.params.period + '" min="2" max="200"></label>';
+  }
+  if (ind.params.stddev !== undefined) {
+    html += '<label>Std Dev <input type="number" id="icfg_stddev" value="' + ind.params.stddev + '" min="0.5" max="5" step="0.1"></label>';
+  }
+  if (ind.params.fast !== undefined) {
+    html += '<label>Fast <input type="number" id="icfg_fast" value="' + ind.params.fast + '" min="2" max="100"></label>';
+  }
+  if (ind.params.slow !== undefined) {
+    html += '<label>Slow <input type="number" id="icfg_slow" value="' + ind.params.slow + '" min="2" max="200"></label>';
+  }
+  if (ind.params.signal !== undefined) {
+    html += '<label>Signal <input type="number" id="icfg_signal" value="' + ind.params.signal + '" min="2" max="100"></label>';
+  }
+  html += '<label>Line width <select id="icfg_width"><option value="1" ' + ((ind.params.width||2)==1?'selected':'') + '>1</option><option value="2" ' + ((ind.params.width||2)==2?'selected':'') + '>2</option><option value="3" ' + ((ind.params.width||2)==3?'selected':'') + '>3</option><option value="4" ' + ((ind.params.width||2)==4?'selected':'') + '>4</option></select></label>';
+  html += '<div style="margin-top:8px">';
+  html += '<button class="btn btn-primary" onclick="applyIndicatorConfig(' + idx + ')">Apply</button> ';
+  html += '<button class="btn" onclick="closeIndicatorConfig()">Cancel</button>';
+  html += '<button class="btn" style="float:right;color:#ef5350" onclick="closeIndicatorConfig();removeIndicator(' + idx + ')">Remove</button>';
+  html += '</div>';
+  panel.innerHTML = html;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+}
+
+function closeIndicatorConfig() {
+  var overlay = document.getElementById("indConfigOverlay");
+  if (overlay) { overlay.parentNode.removeChild(overlay); }
+}
+
+function applyIndicatorConfig(idx) {
+  var ind = activeIndicators[idx];
+  if (!ind) return;
+  var colorEl = document.getElementById("icfg_color");
+  if (colorEl) ind.params.color = colorEl.value;
+  var periodEl = document.getElementById("icfg_period");
+  if (periodEl) ind.params.period = parseInt(periodEl.value) || 14;
+  var stddevEl = document.getElementById("icfg_stddev");
+  if (stddevEl) ind.params.stddev = parseFloat(stddevEl.value) || 2;
+  var fastEl = document.getElementById("icfg_fast");
+  if (fastEl) ind.params.fast = parseInt(fastEl.value) || 12;
+  var slowEl = document.getElementById("icfg_slow");
+  if (slowEl) ind.params.slow = parseInt(slowEl.value) || 26;
+  var signalEl = document.getElementById("icfg_signal");
+  if (signalEl) ind.params.signal = parseInt(signalEl.value) || 9;
+  var widthEl = document.getElementById("icfg_width");
+  if (widthEl) ind.params.width = parseInt(widthEl.value) || 2;
+  closeIndicatorConfig();
+  renderIndChips();
+  computeAndRenderIndicators();
+}
+
+function showStatus(msg, isError) {
+  var el = document.getElementById("status");
+  if (el) { el.textContent = msg; el.style.color = isError ? "#ef5350" : "#888"; }
+}
+
+function computeAndRenderIndicators() {
+  if (!chart || activeIndicators.length === 0) return;
+  var req = {
+    exchange: exchangeEl.value,
+    symbol: symbolEl.value,
+    timeframe: timeframeEl.value,
+    indicators: activeIndicators.map(function(ind) {
+      var params = {};
+      for (var k in ind.params) {
+        if (k !== "color" && k !== "width" && k !== "label") params[k] = ind.params[k];
+      }
+      return { name: ind.name, params: params };
+    }),
+  };
+  var url = "/api/indicators/compute";
+  showStatus("Computing indicators...");
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { showStatus("Indicator error: " + data.error, true); return; }
+      renderIndicatorSeries(data);
+      showStatus("");
+    })
+    .catch(function(e) { showStatus("Indicator compute failed: " + e.message, true); });
+}
+
+var _indicatorPaneCreated = false;
+
+function renderIndicatorSeries(data) {
+  // Remove old series
+  for (var name in indicatorSeries) {
+    var seriesList = indicatorSeries[name];
+    for (var s in seriesList) {
+      if (chart) { try { chart.removeSeries(seriesList[s]); } catch(_) {} }
+    }
+  }
+  indicatorSeries = {};
+
+  // Remove indicator pane if it exists
+  if (chart && _indicatorPaneCreated) {
+    try { chart.removePane(_indicatorPane); } catch(_) {}
+    _indicatorPaneCreated = false;
+  }
+
+  var inds = data.indicators;
+  if (!inds) return;
+
+  var needsPane = false;
+  for (var name in inds) {
+    var ind = inds[name];
+    if (!ind.error && ind.values && ind.pane > 0) { needsPane = true; break; }
+  }
+
+  if (needsPane) {
+    _indicatorPane = chart.addPane({ height: 120 });
+    _indicatorPaneCreated = true;
+  }
+
+  for (var name in inds) {
+    var ind = inds[name];
+    if (ind.error || !ind.values) continue;
+
+    var active = null;
+    for (var a = 0; a < activeIndicators.length; a++) {
+      if (name.indexOf(activeIndicators[a].name) === 0) { active = activeIndicators[a]; break; }
+    }
+
+    var pane = ind.pane || 0;
+    var color = (active && active.params.color) || ind.color || "#26a69a";
+    var width = (active && active.params.width) || 2;
+    var label = ind.label || name.toUpperCase();
+
+    var candles = data.candles || [];
+    var points = [];
+    for (var i = 0; i < ind.values.length; i++) {
+      if (i >= candles.length) break;
+      if (ind.values[i] === null || ind.values[i] === undefined) continue;
+      points.push({
+        time: Math.floor(candles[i].t / 1000),
+        value: ind.values[i],
+      });
+    }
+    if (points.length === 0) continue;
+
+    var series;
+    if (pane === 0) {
+      // Overlay on main chart
+      if (ind.style === "histogram") {
+        series = chart.addHistogramSeries({
+          color: color,
+          priceFormat: { type: "volume" },
+          priceScaleId: "price",
+        });
+      } else {
+        series = chart.addLineSeries({
+          color: color,
+          lineWidth: width,
+          priceScaleId: "price",
+        });
+      }
+    } else {
+      // Separate pane for oscillators
+      var paneScaleId = _indicatorPane.priceScale().id();
+      if (ind.style === "histogram") {
+        series = chart.addHistogramSeries({
+          color: color,
+          priceFormat: { type: "volume" },
+          priceScaleId: paneScaleId,
+        });
+      } else {
+        series = chart.addLineSeries({
+          color: color,
+          lineWidth: width,
+          priceScaleId: paneScaleId,
+        });
+      }
+    }
+
+    series.setData(points);
+    if (!indicatorSeries[name]) indicatorSeries[name] = {};
+    indicatorSeries[name][pane] = series;
   }
 }
 

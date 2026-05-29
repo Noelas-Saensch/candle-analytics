@@ -22,15 +22,15 @@ Start ALL 3 processes (server + 2 agents):
 
 ```bash
 # 1. Strategy Lab agent — requires GROQ_API_KEY env var
-screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/agent.py'
+screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 sleep 1
 
 # 2. Vibe Lab agent (code generation)
-screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/vibe_agent.py'
+screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
 sleep 1
 
 # 3. FastAPI server
-screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && uvicorn api.main:app --host 0.0.0.0 --port 8001'
+screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
 sleep 3
 
 # 4. Verify
@@ -46,11 +46,11 @@ Restart all 3 at once:
 screen -S agent -X quit 2>/dev/null; screen -S vibe-agent -X quit 2>/dev/null; screen -S candle -X quit 2>/dev/null
 sleep 1
 rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
-screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/agent.py'
+screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 sleep 1
-screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/vibe_agent.py'
+screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
 sleep 1
-screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && uvicorn api.main:app --host 0.0.0.0 --port 8001'
+screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
 sleep 3
 curl -s http://localhost:8001/api/health
 echo "agent: $(ps aux | grep 'api/agent.py' | grep -v grep | wc -l) running"
@@ -61,21 +61,21 @@ echo "candle: $(ps aux | grep 'uvicorn' | grep -v grep | wc -l) running"
 Restart Strategy Lab agent only:
 ```bash
 screen -S agent -X quit 2>/dev/null; sleep 1
-screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/agent.py'
+screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 sleep 1
 ```
 
 Restart Vibe Lab agent only:
 ```bash
 screen -S vibe-agent -X quit 2>/dev/null; sleep 1
-screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && python3 api/vibe_agent.py'
+screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
 sleep 1
 ```
 
 Restart server only:
 ```bash
 screen -S candle -X quit 2>/dev/null; sleep 1
-screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && uvicorn api.main:app --host 0.0.0.0 --port 8001'
+screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
 sleep 3
 curl -s http://localhost:8001/api/health
 ```

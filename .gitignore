@@ -15,4 +15,5 @@ node_modules/
 target/
 .venv/
 sessions_upload/
+.opencode/local/
 

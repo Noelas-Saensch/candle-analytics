@@ -45,6 +45,6 @@ Browser ↔ WebSocket → routes.py ↔ /tmp/*.json ↔ agent.py (standalone)
 
 | Session | Process | Port |
 |---------|---------|------|
-| `candle` | uvicorn api.main:app | 8001 |
-| `agent` | python3 api/agent.py (Strategy Lab) | — |
-| `vibe-agent` | python3 api/vibe_agent.py (Vibe Lab) | — |
+| `candle` | .venv/bin/uvicorn api.main:app | 8001 |
+| `agent` | .venv/bin/python api/agent.py (Strategy Lab) | — |
+| `vibe-agent` | .venv/bin/python api/vibe_agent.py (Vibe Lab) | — |

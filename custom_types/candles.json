@@ -1,0 +1,111 @@
+{
+  "_meta": {
+    "description": "All 62 candlestick patterns from TA-Lib CDL pattern recognition, plus additional SMC/ICT concepts. These are boolean detection functions (0/1 signals).",
+    "version": "1.0",
+    "source": "TA-Lib cdl_pattern() — all 62 native patterns"
+  },
+  "cdl_single": {
+    "id": "cdl_single",
+    "label": "Single Candle Patterns",
+    "icon": "🕯️",
+    "patterns": [
+      {"id": "cdl_doji", "label": "Doji", "description": "Open ≈ close — market indecision, potential reversal"},
+      {"id": "cdl_doji_dragonfly", "label": "Dragonfly Doji", "description": "Long lower wick, open/close at high — bullish reversal after downtrend"},
+      {"id": "cdl_doji_gravestone", "label": "Gravestone Doji", "description": "Long upper wick, open/close at low — bearish reversal after uptrend"},
+      {"id": "cdl_doji_long_legged", "label": "Long-Legged Doji", "description": "Long wicks both sides — extreme indecision, high volatility"},
+      {"id": "cdl_hammer", "label": "Hammer", "description": "Small body, long lower wick in downtrend — bullish reversal"},
+      {"id": "cdl_hanging_man", "label": "Hanging Man", "description": "Small body, long lower wick in uptrend — bearish reversal"},
+      {"id": "cdl_shooting_star", "label": "Shooting Star", "description": "Small body, long upper wick in uptrend — bearish reversal"},
+      {"id": "cdl_inverted_hammer", "label": "Inverted Hammer", "description": "Small body, long upper wick in downtrend — bullish reversal"},
+      {"id": "cdl_marubozu", "label": "Marubozu", "description": "No wicks — strong momentum (bullish or bearish)"},
+      {"id": "cdl_marubozu_closing", "label": "Closing Marubozu", "description": "No wick on close side — strong momentum at close"},
+      {"id": "cdl_marubozu_opening", "label": "Opening Marubozu", "description": "No wick on open side — strong momentum at open"},
+      {"id": "cdl_spinning_top", "label": "Spinning Top", "description": "Small body, wicks both sides — weakening momentum, potential reversal"},
+      {"id": "cdl_long_candle", "label": "Long Candle", "description": "Large body relative to recent candles — strong momentum"},
+      {"id": "cdl_short_candle", "label": "Short Candle", "description": "Small body relative to recent candles — low momentum/consolidation"},
+      {"id": "cdl_belt_hold_bullish", "label": "Bullish Belt Hold", "description": "Long white candle from open low — strong bullish opening"},
+      {"id": "cdl_belt_hold_bearish", "label": "Bearish Belt Hold", "description": "Long black candle from open high — strong bearish opening"}
+    ]
+  },
+  "cdl_double": {
+    "id": "cdl_double",
+    "label": "Two-Candle Patterns",
+    "icon": "🕯️🕯️",
+    "patterns": [
+      {"id": "cdl_engulfing_bullish", "label": "Bullish Engulfing", "description": "White body fully engulfs previous black body — strong bullish reversal"},
+      {"id": "cdl_engulfing_bearish", "label": "Bearish Engulfing", "description": "Black body fully engulfs previous white body — strong bearish reversal"},
+      {"id": "cdl_harami_bullish", "label": "Bullish Harami", "description": "Small white body inside previous black body — weak bullish reversal"},
+      {"id": "cdl_harami_bearish", "label": "Bearish Harami", "description": "Small black body inside previous white body — weak bearish reversal"},
+      {"id": "cdl_harami_cross", "label": "Harami Cross", "description": "Doji inside previous body — stronger reversal than regular harami"},
+      {"id": "cdl_piercing", "label": "Piercing Line", "description": "White candle closes above 50% of previous black body — bullish reversal"},
+      {"id": "cdl_dark_cloud_cover", "label": "Dark Cloud Cover", "description": "Black candle closes below 50% of previous white body — bearish reversal"},
+      {"id": "cdl_tweezer_top", "label": "Tweezer Top", "description": "Two candles with same high in uptrend — bearish reversal"},
+      {"id": "cdl_tweezer_bottom", "label": "Tweezer Bottom", "description": "Two candles with same low in downtrend — bullish reversal"},
+      {"id": "cdl_thrusting", "label": "Thrusting Line", "description": "White candle closes in black body but not above midpoint — weak bullish"},
+      {"id": "cdl_in_neck", "label": "In-Neck Line", "description": "White candle closes at previous black close — weak bullish signal"},
+      {"id": "cdl_on_neck", "label": "On-Neck Line", "description": "White candle closes at previous black low — very weak bullish"},
+      {"id": "cdl_kicking_bullish", "label": "Bullish Kicking", "description": "Marubozu gap opposite direction — powerful reversal"},
+      {"id": "cdl_kicking_bearish", "label": "Bearish Kicking", "description": "Marubozu gap opposite direction — powerful reversal"},
+      {"id": "cdl_matching_low", "label": "Matching Low", "description": "Two black candles with same close — support, potential reversal"},
+      {"id": "cdl_separating_lines_bullish", "label": "Bullish Separating Lines", "description": "Black then white at same open — trend continuation"},
+      {"id": "cdl_separating_lines_bearish", "label": "Bearish Separating Lines", "description": "White then black at same open — trend continuation"}
+    ]
+  },
+  "cdl_triple": {
+    "id": "cdl_triple",
+    "label": "Three-Candle Patterns",
+    "icon": "🕯️🕯️🕯️",
+    "patterns": [
+      {"id": "cdl_morning_star", "label": "Morning Star", "description": "Bear → doji/star → bull gap — major bullish reversal"},
+      {"id": "cdl_morning_doji_star", "label": "Morning Doji Star", "description": "Same with doji as middle candle — stronger reversal signal"},
+      {"id": "cdl_evening_star", "label": "Evening Star", "description": "Bull → doji/star → bear gap — major bearish reversal"},
+      {"id": "cdl_evening_doji_star", "label": "Evening Doji Star", "description": "Same with doji as middle candle — stronger reversal signal"},
+      {"id": "cdl_three_white_soldiers", "label": "Three White Soldiers", "description": "3 long white bodies with higher closes — strong uptrend"},
+      {"id": "cdl_three_black_crows", "label": "Three Black Crows", "description": "3 long black bodies with lower closes — strong downtrend"},
+      {"id": "cdl_three_inside_up", "label": "Three Inside Up", "description": "Bear → harami → white above harami — bullish reversal"},
+      {"id": "cdl_three_inside_down", "label": "Three Inside Down", "description": "Bull → harami → black below harami — bearish reversal"},
+      {"id": "cdl_three_outside_up", "label": "Three Outside Up", "description": "Bear → engulfing white → higher close — bullish reversal"},
+      {"id": "cdl_three_outside_down", "label": "Three Outside Down", "description": "Bull → engulfing black → lower close — bearish reversal"},
+      {"id": "cdl_three_stars_south", "label": "Three Stars South", "description": "3 consecutive dojis with lower lows — capitulation, bottom"},
+      {"id": "cdl_three_line_strike_bullish", "label": "Bullish 3-Line Strike", "description": "3 black candles then 1 white above all — shakeout reversal"},
+      {"id": "cdl_three_line_strike_bearish", "label": "Bearish 3-Line Strike", "description": "3 white candles then 1 black below all — distribution reversal"},
+      {"id": "cdl_three_method_rising", "label": "Rising Three Methods", "description": "Long white + 3 small bears inside range — bullish continuation"},
+      {"id": "cdl_three_method_falling", "label": "Falling Three Methods", "description": "Long black + 3 small bulls inside range — bearish continuation"},
+      {"id": "cdl_advance_block", "label": "Advance Block", "description": "3 white candles with shrinking bodies — weakening uptrend"},
+      {"id": "cdl_deliberation", "label": "Deliberation", "description": "2 strong white + 1 doji — potential uptrend exhaustion"},
+      {"id": "cdl_stalled_pattern", "label": "Stalled Pattern", "description": "Long white + gap + doji — uptrend stalling, potential reversal"},
+      {"id": "cdl_upside_gap_two_crows", "label": "Upside Gap Two Crows", "description": "White + bear gap + black below white — bearish reversal"},
+      {"id": "cdl_downside_gap_three_methods", "label": "Downside Gap Three Methods", "description": "3 candles filling a gap — bearish continuation pattern"},
+      {"id": "cdl_downside_gap_two_crows", "label": "Downside Gap Two Crows (alt)", "description": "Variant of gap reversal pattern"},
+      {"id": "cdl_upside_gap_three_methods", "label": "Upside Gap Three Methods", "description": "3 candles filling a gap — bullish continuation pattern"}
+    ]
+  },
+  "cdl_multi": {
+    "id": "cdl_multi",
+    "label": "Multi-Candle / Complex Patterns",
+    "icon": "🕯️📊",
+    "patterns": [
+      {"id": "cdl_abandoned_baby_bullish", "label": "Bullish Abandoned Baby", "description": "Bear + doji gap + white gap — major island reversal"},
+      {"id": "cdl_abandoned_baby_bearish", "label": "Bearish Abandoned Baby", "description": "White + doji gap + black gap — major island reversal"},
+      {"id": "cdl_breakaway_bullish", "label": "Bullish Breakaway", "description": "5-candle pattern: selloff → gap → consolidation → gap up — reversal"},
+      {"id": "cdl_breakaway_bearish", "label": "Bearish Breakaway", "description": "5-candle pattern: rally → gap → consolidation → gap down — reversal"},
+      {"id": "cdl_conceal_baby_bull", "label": "Concealing Baby Swallow", "description": "4 black candles, 3rd small body within 2nd, 4th engulfs all — bottom"},
+      {"id": "cdl_counterattack_bullish", "label": "Bullish Counterattack", "description": "Black then white both close at same level — potential reversal"},
+      {"id": "cdl_counterattack_bearish", "label": "Bearish Counterattack", "description": "White then black both close at same level — potential reversal"},
+      {"id": "cdl_doji_star_bullish", "label": "Bullish Doji Star", "description": "Long black + doji gap down — reversal signal"},
+      {"id": "cdl_doji_star_bearish", "label": "Bearish Doji Star", "description": "Long white + doji gap up — reversal signal"},
+      {"id": "cdl_gap_side_white", "label": "Gap Side White (Up/Down)", "description": "White candle that closes a gap — continuation confirmation"},
+      {"id": "cdl_hikkake_mod_bullish", "label": "Bullish Hikkake Modified", "description": "Hikkake (false breakout) pattern — bullish variant"},
+      {"id": "cdl_hikkake_mod_bearish", "label": "Bearish Hikkake Modified", "description": "Hikkake (false breakout) pattern — bearish variant"},
+      {"id": "cdl_hikkake", "label": "Hikkake Pattern", "description": "False breakout trap — inside day then break opposite direction"},
+      {"id": "cdl_homing_pigeon", "label": "Homing Pigeon", "description": "Smaller black inside larger black — bullish harami variant"},
+      {"id": "cdl_identical_crows", "label": "Identical Three Crows", "description": "3 black candles with equal or similar closes — strong bearish"},
+      {"id": "cdl_ladder_bottom", "label": "Ladder Bottom", "description": "4 black + 1 white gap — bullish reversal after capitulation"},
+      {"id": "cdl_long_line", "label": "Long Line Candle", "description": "Candle with body > threshold% of range — direction signal"},
+      {"id": "cdl_master_doji", "label": "Master Doji", "description": "All candles in lookback are dojis — extreme indecision"},
+      {"id": "cdl_tasuki_gap_bullish", "label": "Bullish Tasuki Gap", "description": "Gap up + black that doesn't fill gap — bullish continuation"},
+      {"id": "cdl_tasuki_gap_bearish", "label": "Bearish Tasuki Gap", "description": "Gap down + white that doesn't fill gap — bearish continuation"},
+      {"id": "cdl_unique_three_river", "label": "Unique Three River", "description": "Long black + lower low then higher close — bullish bottom pattern"}
+    ]
+  }
+}

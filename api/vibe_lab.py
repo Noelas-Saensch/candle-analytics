@@ -790,10 +790,17 @@ function handleWSMessage(data) {
     if (_pendingChatTimeout) clearTimeout(_pendingChatTimeout);
     _pendingChatTimeout = setTimeout(function () {
       if (_pendingId) {
-        addChatMessage('system', 'Still waiting...');
+        addChatMessage('system', "Toujours en attente... L'IA peut prendre 30-60s pour les strategies complexes");
         document.getElementById('typingIndicator').classList.add('hidden');
       }
     }, 15000);
+    return;
+  }
+
+  if (data.type === 'status') {
+    if (_pendingId == data.id) {
+      addChatMessage('system', data.content || 'Traitement en cours...');
+    }
     return;
   }
 
@@ -817,7 +824,7 @@ function handleWSMessage(data) {
 
   if (data.type === 'timeout') {
     if (_pendingChatTimeout) { clearTimeout(_pendingChatTimeout); _pendingChatTimeout = null; }
-    addChatMessage('system', 'No response in time — check that vibe-agent is running (screen -ls)');
+    addChatMessage('system', data.content || "L'IA n'a pas repondu a temps. Verifie que l'agent tourne (`screen -ls`).");
     _pendingId = null;
   }
 }

@@ -5,7 +5,7 @@ Watches /tmp/vibe_chat_req_*.json for new messages, calls Groq API,
 and writes response files back.
 
 Run in a screen session:
-  screen -dmS vibe-agent python3 api/vibe_agent.py
+  screen -dmS vibe-agent .venv/bin/python api/vibe_agent.py
 """
 
 from dotenv import load_dotenv
@@ -138,7 +138,7 @@ def call_groq(messages: list[dict]) -> str | None:
                     "model": GROQ_MODEL,
                     "messages": messages,
                     "temperature": 0.4,
-                    "max_tokens": 2048,
+                    "max_tokens": 512,
                 },
                 timeout=60,
             )
@@ -149,6 +149,9 @@ def call_groq(messages: list[dict]) -> str | None:
                 logger.warning("Groq API: rate limited (attempt %d/3)", attempt + 1)
                 time.sleep(2 ** attempt)
                 continue
+            if resp.status_code == 413:
+                logger.warning("Groq API: request too large (413) — reduce history or max_tokens")
+                return None
             if resp.status_code != 200:
                 logger.warning("Groq API returned %d: %s", resp.status_code, resp.text[:200])
                 if attempt < 2:
@@ -270,8 +273,8 @@ def main():
                     res = {
                         "type": "message",
                         "content": (
-                            "⚠️ Groq API is not responding. "
-                            "Set GROQ_API_KEY or check console.groq.com"
+                            "⚠️ Groq API error. "
+                            "Check agent log or console.groq.com"
                         ),
                     }
                 else:

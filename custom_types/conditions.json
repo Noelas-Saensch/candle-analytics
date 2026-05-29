@@ -1,0 +1,221 @@
+{
+  "_meta": {
+    "description": "Advanced condition templates for multi-condition logic, thresholds, state machine conditions, and AI-generated patterns.",
+    "version": "1.0"
+  },
+  "condition_templates": {
+    "threshold_zone": {
+      "id": "threshold_zone",
+      "label": "Threshold Zone",
+      "description": "Entry/exit when metric crosses into a zone and stays for N bars",
+      "template": {
+        "metric_id": "metric",
+        "zone_type": "enum(above, below, between, outside)",
+        "zone_lower": "float (optional)",
+        "zone_upper": "float (optional)",
+        "confirmation_bars": "int (default: 0)"
+      },
+      "example": {"metric": "rsi_value", "zone_type": "below", "zone_upper": 30, "confirmation_bars": 2}
+    },
+    "cross_condition": {
+      "id": "cross_condition",
+      "label": "Cross/Crossunder",
+      "description": "Trigger when metric A crosses above/below metric B (or a price level)",
+      "template": {
+        "metric_a": "metric_id",
+        "metric_b": "metric_or_price_or_value",
+        "cross_type": "enum(crossover, crossunder)",
+        "lookback": "int (default: 1)"
+      },
+      "example": {"metric_a": "sma_50", "metric_b": "sma_200", "cross_type": "crossover"}
+    },
+    "divergence_condition": {
+      "id": "divergence_condition",
+      "label": "Divergence Condition",
+      "description": "Trigger when price and indicator diverge (regular or hidden)",
+      "template": {
+        "indicator": "metric_id",
+        "divergence_type": "enum(regular_bullish, regular_bearish, hidden_bullish, hidden_bearish)",
+        "lookback": "int (default: 50)",
+        "min_swing_size": "float (default: 1.0%)"
+      },
+      "example": {"indicator": "rsi_value", "divergence_type": "regular_bullish", "lookback": 50}
+    },
+    "oscillator_zone": {
+      "id": "oscillator_zone",
+      "label": "Oscillator Zone + Exit",
+      "description": "Enter when oscillator enters zone, exit when it leaves",
+      "template": {
+        "oscillator": "metric_id",
+        "entry_zone": "enum(oversold, overbought, middle_cross_up, middle_cross_down)",
+        "exit_zone": "enum(middle_cross, opposite_zone)",
+        "zone_value": "float (optional override for default)"
+      },
+      "example": {"oscillator": "rsi", "entry_zone": "oversold", "exit_zone": "middle_cross", "zone_value": 30}
+    },
+    "multi_timeframe_condition": {
+      "id": "multi_timeframe_condition",
+      "label": "Multi-Timeframe Condition",
+      "description": "Require the same condition to be true on a higher timeframe",
+      "template": {
+        "condition": "object (nested condition)",
+        "higher_timeframe": "string (e.g. 1h, 4h, 1d)",
+        "alignment": "enum(bullish_aligned, bearish_aligned, any)"
+      },
+      "example": {"condition": {"rsi": {"op": "lt", "value": 30}}, "higher_timeframe": "1h", "alignment": "bullish_aligned"}
+    },
+    "smc_condition": {
+      "id": "smc_condition",
+      "label": "SMC Confluence",
+      "description": "Multiple SMC conditions must align: FVG + OB + Structure",
+      "template": {
+        "fvg": "string(bullish, bearish, either, none)",
+        "order_block": "string(bullish, bearish, either, none)",
+        "structure": "string(bos_bullish, bos_bearish, choch_bullish, choch_bearish, either)",
+        "liquidity_sweep": "boolean (default: false)",
+        "max_distance_bars": "int (default: 10)"
+      },
+      "example": {"fvg": "bullish", "order_block": "bullish", "structure": "bos_bullish", "liquidity_sweep": true}
+    },
+    "regime_filter": {
+      "id": "regime_filter",
+      "label": "Regime Filter",
+      "description": "Only allow entries when market is in a specific regime",
+      "template": {
+        "allowed_regimes": "array[string] (trending, ranging, volatile)",
+        "min_confidence": "float (0-1, default: 0.6)"
+      },
+      "example": {"allowed_regimes": ["trending"], "min_confidence": 0.7}
+    },
+    "correlation_pair_condition": {
+      "id": "correlation_pair_condition",
+      "label": "Cross-Asset Condition",
+      "description": "Condition based on another symbol's state (correlation, divergence, relative strength)",
+      "template": {
+        "symbol": "string (pair/symbol to check)",
+        "metric_id": "metric or indicator on that symbol",
+        "op": "gt/gte/lt/lte/eq/neq",
+        "value": "float or derived from local symbol",
+        "comparison_type": "enum(absolute, ratio, delta, correlation)"
+      },
+      "example": {"symbol": "BTCUSDT", "metric_id": "rsi", "op": "lt", "value": 30, "comparison_type": "absolute"}
+    },
+    "multi_leg_condition": {
+      "id": "multi_leg_condition",
+      "label": "Multi-Leg Condition (AND/OR tree)",
+      "description": "Nested boolean tree of conditions with AND/OR logic at each level",
+      "template": {
+        "operator": "enum(AND, OR)",
+        "conditions": "array of (condition object or nested multi_leg_condition)",
+        "min_match": "int (default: 0, 0 = all for AND, any for OR)"
+      },
+      "example": {
+        "operator": "AND",
+        "conditions": [
+          {"rsi": {"op": "lt", "value": 30}},
+          {"operator": "OR", "conditions": [
+            {"sma_20": {"comparison": "price_above"}},
+            {"bbands": {"comparison": "touch_lower"}}
+          ]}
+        ]
+      }
+    },
+    "sequence_condition": {
+      "id": "sequence_condition",
+      "label": "Bar Sequence / Pattern",
+      "description": "Detect a sequence of N bars matching specific per-bar criteria",
+      "template": {
+        "bars": "array of bar conditions (each can have OHLC, indicator filters)",
+        "max_deviation": "float (default: 0)"
+      },
+      "example": {"bars": [{"close_op": "gt", "close_gt_open": true}, {"close_op": "gt", "close_gt_open": true}], "max_deviation": 0.03}
+    },
+    "band_condition": {
+      "id": "band_condition",
+      "label": "Channel/Band Position",
+      "description": "Price position relative to a band/channel (BB, KC, Donchian)",
+      "template": {
+        "channel": "metric_id (bbands, kc, donchian)",
+        "position": "enum(below_lower, touch_lower, inside_lower_half, middle, inside_upper_half, touch_upper, above_upper)",
+        "bandwidth_condition": "enum(squeeze, expansion, normal) (optional)"
+      },
+      "example": {"channel": "bbands", "position": "below_lower", "bandwidth_condition": "squeeze"}
+    },
+    "momentum_shift": {
+      "id": "momentum_shift",
+      "label": "Momentum Shift / Acceleration",
+      "description": "Detect when momentum changes direction or accelerates",
+      "template": {
+        "momentum_metric": "metric_id (momentum, roc, macd_histogram)",
+        "shift_type": "enum(positive_to_negative, negative_to_positive, acceleration, deceleration)",
+        "threshold": "float (minimum change to register)",
+        "lookback": "int (default: 3)"
+      },
+      "example": {"momentum_metric": "macd_histogram", "shift_type": "negative_to_positive", "threshold": 0.5}
+    },
+    "time_filter": {
+      "id": "time_filter",
+      "label": "Time/Date Filter",
+      "description": "Restrict entries to specific times, days, or sessions",
+      "template": {
+        "session": "string (london, ny, asian, london_ny_overlap, custom)",
+        "days_of_week": "array[string] (mon, tue, wed, thu, fri, sat, sun)",
+        "start_time": "string (HH:MM in UTC, optional)",
+        "end_time": "string (HH:MM in UTC, optional)",
+        "timezone": "string (default: UTC)"
+      },
+      "example": {"session": "london_ny_overlap", "days_of_week": ["mon", "tue", "wed", "thu", "fri"]}
+    },
+    "volume_confirmation": {
+      "id": "volume_confirmation",
+      "label": "Volume Confirmation",
+      "description": "Require volume spike or above-average volume to confirm signal",
+      "template": {
+        "volume_metric": "metric_id (volume_ratio, volume_sma)",
+        "op": "gt/gte",
+        "threshold": "float (default: 1.5 = 50% above avg)",
+        "signal_condition": "object (the condition that needs volume confirmation)"
+      },
+      "example": {"volume_metric": "volume_ratio", "op": "gt", "threshold": 2.0, "signal_condition": {"metric_id": "rsi", "op": "lt", "value": 30}}
+    },
+    "atr_trailing_condition": {
+      "id": "atr_trailing_condition",
+      "label": "ATR Trailing Exit",
+      "description": "Exit when price closes below/above ATR-based trailing stop",
+      "template": {
+        "direction": "enum(long, short)",
+        "atr_period": "int (default: 14)",
+        "multiplier": "float (default: 3.0)",
+        "use_close": "boolean (default: true, false=use wick)"
+      },
+      "example": {"direction": "long", "atr_period": 14, "multiplier": 3.0, "use_close": true}
+    },
+    "custom_formula": {
+      "id": "custom_formula",
+      "label": "Custom Formula Condition",
+      "description": "AI-defined boolean expression combining multiple indicators",
+      "template": {
+        "expression": "string (boolean expression, e.g. 'rsi(14) < 30 AND sma(20) > sma(50)')",
+        "variables": "array of {name, metric_id, params} (each variable maps to an indicator)",
+        "evaluator": "enum(formula, sandbox, state_machine)"
+      },
+      "example": {"expression": "rsi_val < 30 AND sma20 > sma50 AND macd_hist > 0", "variables": [
+        {"name": "rsi_val", "metric_id": "rsi", "params": {"period": 14}},
+        {"name": "sma20", "metric_id": "sma", "params": {"period": 20}},
+        {"name": "sma50", "metric_id": "sma", "params": {"period": 50}},
+        {"name": "macd_hist", "metric_id": "macd", "output": "histogram"}
+      ]}
+    },
+    "reference_symbol_condition": {
+      "id": "reference_symbol_condition",
+      "label": "Reference Symbol Condition",
+      "description": "Condition computed on a different symbol (e.g., BTC RSI for altcoin entries)",
+      "template": {
+        "symbol": "string",
+        "condition": "object (full condition object to evaluate on reference)",
+        "context": "enum(independent, ratio_to_reference, spread_to_reference)"
+      },
+      "example": {"symbol": "BTCUSDT", "condition": {"metric_id": "rsi", "op": "gt", "value": 50}, "context": "independent"}
+    }
+  }
+}

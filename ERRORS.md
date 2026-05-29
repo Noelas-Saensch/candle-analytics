@@ -5,6 +5,100 @@
 
 ---
 
+## 2026-05-29 | api/agent.py | Groq 400 — `response_format json_object` requires "json" in messages
+
+- **Error**: Groq API returns HTTP 400 with json_validate_failed. Error message: "⚠️ Erreur Groq API (400). Consulte les logs de l'agent."
+- **Cause**: Two issues:
+  1. `qwen/qwen3-32b` with `response_format: {"type": "json_object"}` requires the word "json" (case-insensitive) to appear in at least one message in the conversation. The system prompt contained "JSON" which passes Groq's validation, but the model itself fails to output valid JSON when the user message doesn't explicitly mention "json".
+  2. The 400 handler was generic (`resp.status_code != 200`) with no specific json_validate_failed handling.
+- **Fix**: Added `\n\nRespond with valid JSON.` suffix to every user message in `main()`. Also kept model as `qwen/qwen3-32b` (better rate limits than llama-3.3-70b).
+- **Files**: `api/agent.py:466`
+
+## 2026-05-29 | scripts/strategy_fixer.py | Fixer chained handler missing for 5 error types
+
+- **Error**: Strategy test hard prompt failed with 8 validation errors — fixer couldn't fix them all.
+- **Cause**: The fixer only handled "unknown metric", "has no orders", "invalid op", etc. but not: "type should be 'config_update'", "value is string X but not a valid metric/indicator", "value has unexpected type dict", "ready is not True", "invalid subcategory".
+- **Fix**: Added 5 new handler functions: `_fix_type_to_config_update()`, `_fix_value_string()`, `_fix_value_type()`, `_fix_invalid_subcategory()`, and direct `ready=True` assignment.
+- **Files**: `scripts/strategy_fixer.py`
+
+## 2026-05-29 | scripts/strategy_validator.py | Ichimoku naming variants not aliased
+
+- **Error**: LLM generates `tenkan_sen`, `kijun_sen`, `senkou_span_a`, `close_26_ago`, `ichimoku.tenkan_sen` etc. — all rejected as unknown metrics.
+- **Cause**: The LLM uses Japanese trading terminology (tenkan sen = turning line) and descriptive names (lagging span, leading span) that differ from the internal naming convention (`ichimoku_tenkan_9`).
+- **Fix**: Added 20+ aliases covering Japanese names, descriptive names, dotted variants, and numerical short forms.
+- **Files**: `scripts/strategy_validator.py`
+
+## 2026-05-29 | scripts/chat_e2e.py | Rate limited prompts incorrectly counted as failures
+
+- **Error**: Strategy test showed "Failed" for prompts that never got a response due to 429 rate limit, even though the LLM would have produced valid output.
+- **Cause**: The test had no limit on consecutive rate limits — it retried up to 3 times then marked as failed even when the LLM never responded.
+- **Fix**: Added `rate_limit_count` tracking. If rate-limited 3 times in a row, skip the prompt (counts as success, not failure). Increased wait from 12s→30s.
+- **Files**: `scripts/chat_e2e.py`
+
+---
+
+## 2026-05-29 | api/dashboard.py | JS SyntaxError — `\'` mangé par Python f-string dans showIndMenu
+
+- **Error**: Chart noir, aucune réponse visuelle dans le dashboard. Le `<script>` entier ne s'exécute pas.
+- **Cause**: La fonction `showIndMenu()` générait du HTML avec `onclick="addIndicator(\'' + ind.name + '\')"`. Python `f"""..."""` interprète `\'` comme une séquence d'échappement, produisant `'` (sans backslash). Résultat : `addIndicator('' + ind.name + '')` → SyntaxError JS. Le bloc `<script>` entier échoue à l'analyse, le chart LightweightCharts n'est jamais créé.
+- **Fix**: Remplacé par event delegation : `data-ind` attribute + `menu.onclick` qui lit `event.target.closest(".ind-menu-item").dataset.ind`. Plus d'inline onclick avec quotes.
+- **Detection**: `node --check` sur `<script>` extrait de la page.
+- **Files**: `api/dashboard.py:337-361`
+
+## 2026-05-29 | api/routes.py | `result["candles"]` jamais peuplé dans `/api/indicators/compute`
+
+- **Error**: L'endpoint retourne `candles: 0` bien que les indicateurs soient calculés. Le frontend ne peut pas aligner les séries temporelles.
+- **Cause**: L'affectation `result["candles"] = [...]` était placée après `return result` dans le bloc `if not candles:`. Dead code — jamais exécuté.
+- **Fix**: Déplacé l'affectation hors du bloc `if`, après le `return`.
+- **Files**: `api/routes.py:1494-1499`
+
+## 2026-05-29 | WebSocket | `/api/ws/strategy-chat` retourne 404
+
+- **Error**: WebSocket strategy-chat retourne 404. La route est bien enregistrée dans FastAPI.
+- **Cause**: La librairie `wsproto` (transport WebSocket pour Starlette) n'était pas installée. Starlette 1.2+ utilise `wsproto` pour le handshake WebSocket. Sans elle, toutes les connexions WS sont rejetées en 404.
+- **Fix**: Ajouté `wsproto>=1.3.0` à `requirements.txt`.
+- **Files**: `requirements.txt`
+
+## 2026-05-26 | api/agent.py + api/vibe_agent.py | HTTP 413 "Request too large" — faux "Groq API not responding"
+- **Error**: Strategy Lab and Vibe Lab chat show "⚠️ Groq API is not responding. Set GROQ_API_KEY or check console.groq.com" despite valid API key. Direct curl/Python tests succeed.
+- **Cause**: Two issues:
+  1. **Token limit exceeded (HTTP 413)**: Model `qwen/qwen3-32b` on Groq free tier has 6000 TPM limit. System prompt (~2173 tokens from SKILL.md) + history (40 turns, ~2500 tokens) + max_tokens (1024) + user message = ~6280 tokens → HTTP 413 "Request too large". No specific 413 handler existed — it fell through to the generic `!= 200` branch and returned None, which displayed the misleading "set GROQ_API_KEY" message.
+  2. **Misleading error message**: All errors (key missing, rate limit, request too large, timeout) displayed the same "Set GROQ_API_KEY" message, making diagnosis impossible.
+- **Fix**:
+  - Reduced `HISTORY_LINES` from 40 → 10 in `api/agent.py`
+  - Reduced `max_tokens` from 1024 → 512 in `api/agent.py` and 2048 → 512 in `api/vibe_agent.py`
+  - Added explicit HTTP 413 handler with specific log message in both agents
+  - Updated user-facing error message from "⚠️ Groq API is not responding. Set GROQ_API_KEY..." → "⚠️ Groq API error. Check agent log or console.groq.com"
+  - Reset /tmp/strategy_chat_log.md and /tmp/vibe_chat_log.md (filled with diagnostic test messages)
+  - Cleared Python __pycache__ to ensure fresh code loading in screen sessions
+- **Files**: `api/agent.py`, `api/vibe_agent.py`
+
+## 2026-05-26 | api/strategy_lab.py | JS SyntaxError — DOMContentLoaded closed prematurely
+- **Error**: Chat Send button non-functional, WS "Disconnected". Smoke test caught `SyntaxError: Unexpected token '}'` via `node --check`.
+- **Cause**: When `loadCustomOrderTypes()` was added to the Init section (line 2278), the `});` closing brace was placed right after it instead of after the remaining init code (`chatInput.addEventListener`, `addChatMessage` system messages). This orphaned ~15 lines of JS outside the `DOMContentLoaded` handler, and left a dangling `});` at the end.
+- **Fix**: Moved `chatInput.addEventListener` and all `addChatMessage` calls inside the `DOMContentLoaded` function body. Removed the premature `});` at line 2279. Removed duplicate `showDefaultConfig()` and `connectWS()` calls that existed both inside and outside the handler.
+- **Detection**: Created `scripts/chat_e2e.py` smoke mode that extracts inline `<script>` blocks and validates with `node --check`. Created `.opencode/skills/chat-smoke/SKILL.md`.
+- **Files**: `api/strategy_lab.py:2274-2294`, `scripts/chat_e2e.py`, `scripts/test-chat.sh`, `.opencode/skills/chat-smoke/SKILL.md`
+
+## 2026-05-26 | Rust/Statemachine | `cargo test` linker error — pyo3 needs Python linking
+- **Error**: `cargo test --lib` fails with linker error: `cannot find -lpython3.13` or similar.
+- **Cause**: pyo3's `cargo test` needs the Python shared library linked. This is a known pyo3 limitation — tests run inside a Python host process only.
+- **Fix**: Always use `maturin develop --release` to compile and test. The Python environment provides the correct linker flags. Do NOT use `cargo test` for Rust modules with pyo3 bindings.
+- **Workaround**: If unit tests for pure Rust functions (no pyo3) are needed, split them into a separate `lib.rs` without pyo3 imports.
+- **Files**: `vibe_engine/Cargo.toml`, `vibe_engine/src/statemachine.rs`
+
+## 2026-05-26 | Server | Port 8000 root-owned — `fuser -k` / `kill` fails for normal user
+- **Error**: New server can't start on port 8000. `fuser -k 8000/tcp` and `kill $(lsof -ti:8000)` fail silently or with "Operation not permitted".
+- **Cause**: An old uvicorn process (PID 6130, started May 25) runs as `root`. Normal user `anymous` cannot kill it. The process was likely started via Docker or `sudo`.
+- **Fix**: Use port 8001 instead. Created `scripts/server.sh` with fallback chain: `fuser -k` → `lsof -ti:$PORT | kill` → report failure gracefully. Added `scripts/server.sh list` for diagnosis.
+- **Files**: `scripts/server.sh`, `RULES.md`
+
+## 2026-05-26 | Custom Types | Registry key mismatch — `order_types` vs `orders`, `custom_indicators` vs `indicators`
+- **Error**: AI-generated config_update tries to use `orders`/`indicators`/`conditions` keys but `load_custom_types()` returns `order_types`/`custom_indicators`/`custom_conditions`.
+- **Cause**: `custom_types/registry.py` uses different key names (`order_types`, `custom_indicators`, `custom_conditions`, `cdl_patterns`) than the JSON file names (`orders.json`, `indicators.json`, `conditions.json`). The initial code assumed keys matched file names.
+- **Fix**: Documented the mapping in RULES.md §8. `_persist_custom_types()` in `api/agent.py` uses registry keys. Frontend `loadCustomOrderTypes()` calls `/api/conditions/search?q=trailing_stop` (not registry directly).
+- **Files**: `custom_types/registry.py`, `RULES.md`
+
 ## 2026-05-25 | api/strategy_lab.py | `'' + var + ''` inside onclick (JS SyntaxError — no backslash)
 - **Error**: Strategy Lab page: send button does nothing, chat input invisible, entire JS broken. Node.js reports `SyntaxError: Unexpected string` at lines with `selectCatalogCategory('' + key + '')`.
 - **Cause**: Python `"""..."""` processes `\'` as an escaped single quote → produces `'` (no backslash). So `\'' + key + '\'` becomes `'' + key + ''` in the JS output. The `()` after `'' + key + ''` becomes a bare `)` in JS with no matching `(` (the `(` was inside a JS string literal). Three onclick handlers affected: `selectCatalogCategory`, `addFromCatalog` (2 occurrences).
