@@ -81,6 +81,15 @@ INDICATOR_ALIASES = {
     "ichimoku.senkou_span_a": "ichimoku_senkou_a",
     "ichimoku.senkou_span_b": "ichimoku_senkou_b",
     "ichimoku.chikou_span": "ichimoku_chikou_26",
+    # Additional hallucinated/common LLM variants
+    "ichimoku_conversion_line": "ichimoku_tenkan_9",
+    "conversion_line": "ichimoku_tenkan_9",
+    "ichimoku_a": "ichimoku_senkou_a",
+    "ichimoku_b": "ichimoku_senkou_b",
+    "ichimoku_leading_a": "ichimoku_senkou_a",
+    "ichimoku_leading_b": "ichimoku_senkou_b",
+    "cloud_a": "ichimoku_senkou_a",
+    "cloud_b": "ichimoku_senkou_b",
     # Close offset aliases (chikou vs close 26 bars ago)
     "close_26_ago": "close",
     "close_26": "close",

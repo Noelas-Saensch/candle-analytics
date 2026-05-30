@@ -74,15 +74,36 @@ On every session start, check the following:
 
 ## End-of-session checklist
 
-When the session is ending (user says `/exit`, `/quit`, `stop`, or `restart`):
+When the session is ending (user says `/exit`, `/quit`, `stop`, `exit`, or `restart`):
 
 1. The auto-export plugin already saves the conversation
-2. Offer to run `/synthesis s` if significant work was done
-3. Update CHRONOLOGIE.md with the final session entry
-4. Update ROADMAP.md (move done items to ✅ Done, add new 🟢 To Do items)
-5. **Check for unprocessed strategy requests** — review `/tmp/strategy_chat_req_*.json` and respond if any
-6. **Run code-quality checklist** (`~/.config/opencode/skills/code-quality/SKILL.md`)
-   — catch `const` dupes, silent catches, broken imports, missing endpoints, WS connectivity
+2. Update CHRONOLOGIE.md with the final session entry
+3. Update ROADMAP.md (move done items to ✅ Done, add new 🟢 To Do items)
+4. Update ERRORS.md with all bugs fixed this session
+5. Update all other `.md` files (RULES.md, AGENTS.md, etc.) as needed
+6. **Execute GitHub backup** — push all changes to `origin main` via the `github-backup` skill
+7. **Full server shutdown** — kill ALL running processes (agent, vibe-agent, candle, uvicorn)
+8. Write session synthesis to `sessions_upload/`
+
+## Full server shutdown
+
+When the session ends or user exits opencode, ALL server processes must be killed.
+Nothing should remain active:
+
+```bash
+# Kill all agent/vibe-agent Python processes by name
+pkill -f "python.*api/agent.py" 2>/dev/null
+pkill -f "python.*api/vibe_agent.py" 2>/dev/null
+# Kill uvicorn server
+pkill -f "uvicorn" 2>/dev/null
+sleep 1
+# Wipe dead screen sessions
+screen -wipe 2>/dev/null
+# Clean IPC files
+rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/groq_busy.lock 2>/dev/null
+# Verify nothing remains
+echo "Remaining processes:" && ps aux | grep -E 'api/agent|api/vibe_agent|uvicorn' | grep -v grep || echo "None — clean shutdown"
+```
 
 ## Sub-agent usage during session
 
@@ -101,14 +122,14 @@ After ANY file edit, creation, or deletion in the project, restart ALL 3 process
 ```bash
 ALL_OK=true
 
-# 1. Kill old sessions
-screen -S agent -X quit 2>/dev/null
-screen -S vibe-agent -X quit 2>/dev/null
-screen -S candle -X quit 2>/dev/null
+# 1. Kill old agent processes — pkill handles ALL duplicates, screen -X quit only kills one
+pkill -f "python.*api/agent.py" 2>/dev/null
+pkill -f "python.*api/vibe_agent.py" 2>/dev/null
 sleep 1
+for s in candle; do screen -S "$s" -X quit 2>/dev/null; done
 
 # 2. Clean up stale IPC files
-rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
+rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json /tmp/groq_busy.lock
 
 # 3. Start Strategy Lab agent
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py' || { echo "FAIL: agent screen"; ALL_OK=false; }

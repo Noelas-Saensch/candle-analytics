@@ -165,6 +165,25 @@ ps aux | grep "api/vibe_agent.py" | grep -v grep || echo "FAIL: vibe-agent (Vibe
 [ -n "$GROQ_API_KEY" ] && echo "OK: GROQ_API_KEY set" || echo "FAIL: GROQ_API_KEY not set"
 ```
 
+### 15. Python-to-JS quoting check
+
+Run AFTER every edit to any `.py` file that contains inline HTML/JS (especially `dashboard.py`, `strategy_lab.py`, `vibe_lab.py`, `convert.py`).
+
+```bash
+bash scripts/check-pyjs-quotes.sh api/dashboard.py api/strategy_lab.py api/vibe_lab.py api/convert.py
+```
+
+Must report `PASS` for all files. If it reports `FAIL`, fix the quoting before proceeding.
+
+#### Common fixes
+
+| Python source | What Python sends | JS sees | Fix |
+|---|---|---|---|
+| `\\'` | `\'` | `\'` | ✅ Correct |
+| `\'` | `'` | `'` | ❌ Backslash eaten — use `\\'` |
+| `\\"` | `\"` | `\"` | ✅ Correct |
+| `\"` | `"` | `"` | ❌ Backslash eaten — use `\\"` |
+
 ---
 
 ## Sub-agent usage patterns
@@ -206,3 +225,34 @@ Return:
 | `grep -n "catch(_)" api/*.py` | Find silent catches |
 | `python3 -c "from api.main import app"` | Check Python imports |
 | `curl -s http://localhost:8001/api/health` | Verify server is alive |
+
+### 16. E2E smoke test
+
+Run BEFORE marking any server-side change as complete:
+
+```bash
+python3 scripts/chat_e2e.py smoke --port 8001
+```
+
+Must report `All tests passed`. Checks all pages (dashboard, strategy-lab, convert), JS syntax, HTML structure, and critical API endpoints.
+
+### 17. Subscription cleanup audit
+
+After any change involving event listeners, SSE, timers, or chart subscriptions:
+
+```bash
+# Check subscription ↔ cleanup pairs
+grep -rn "\.subscribeCrosshairMove\|\.subscribeVisibleTimeRangeChange\|addEventListener\|new ResizeObserver\|new EventSource\|setTimeout" api/ --include="*.py" --exclude-dir=.venv
+# Check cleanups exist
+grep -rn "\.unsubscribe\|removeEventListener\|\.disconnect\|\.close()\|clearTimeout" api/ --include="*.py" --exclude-dir=.venv
+```
+
+Every subscription must have a matching cleanup. Reference RULES.md §10 for the pattern.
+
+### 18. New page / route registration check
+
+When adding a new page route:
+- [ ] Router registered in `api/main.py`
+- [ ] Smoke test `chat_e2e.py` has HTML/JS/API checks for the new page
+- [ ] `<nav>` in the new page links back to all existing pages
+- [ ] Existing pages' `<nav>` includes the new page link

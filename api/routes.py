@@ -1,4 +1,5 @@
 import asyncio
+import bisect
 import csv
 from datetime import datetime
 import io
@@ -18,12 +19,66 @@ import yaml
 
 from candles.config import settings
 from candles.fetcher import fetch_and_store, parse_pairs, parse_timeframes
-from candles.storage.db import query_candles, count_candles, get_available_pairs
+from candles.storage.db import query_candles, count_candles, get_candle_range, get_available_pairs
 from api.vibe_lab import _log_vibe
 from api.condition_registry import search_conditions, CONDITION_REGISTRY, FLAT_REGISTRY
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+TIMEFRAMES_MS = {
+    "1m": 60000, "5m": 300000, "15m": 900000, "30m": 1800000,
+    "1H": 3600000, "2H": 7200000, "4H": 14400000, "6H": 21600000,
+    "12H": 43200000, "1D": 86400000, "1W": 604800000, "1M": 2592000000,
+}
+TRAINING_CANDLES_DEFAULT = 5000
+
+
+async def ensure_candle_pool(
+    exchange: str, symbol: str, timeframe: str,
+    target_count: int = TRAINING_CANDLES_DEFAULT,
+) -> dict:
+    now_ms = int(datetime.now().timestamp() * 1000)
+    tf_ms = TIMEFRAMES_MS.get(timeframe, 3600000)
+    ideal_start = now_ms - target_count * tf_ms
+
+    result = {"ideal_start": ideal_start, "ideal_end": now_ms, "messages": [], "count": 0}
+
+    rng = get_candle_range(exchange=exchange, symbol=symbol, timeframe=timeframe)
+    have = rng["count"] if rng else 0
+
+    if have >= target_count:
+        result["count"] = have
+        return result
+
+    result["messages"].append(
+        f"📡 {exchange}:{symbol} {timeframe} — only {have} candles, fetching {target_count} from {_fmt_ts(ideal_start)}"
+    )
+
+    fetch_r = await fetch_and_store(
+        exchange_name=exchange, symbol=symbol, timeframe=timeframe,
+        limit=target_count, start_time=ideal_start,
+    )
+    if fetch_r.get("status") == "ok":
+        result["messages"].append(f"✅ Fetched {fetch_r['count']} new candles")
+    else:
+        result["messages"].append(f"⚠️ Fetch: {fetch_r.get('status')} — {fetch_r.get('reason', '?')}")
+
+    rng2 = get_candle_range(exchange=exchange, symbol=symbol, timeframe=timeframe)
+    actual = rng2["count"] if rng2 else 0
+    result["count"] = actual
+
+    if actual < target_count and rng2:
+        result["messages"].append(
+            f"ℹ️ Only {actual} candles available for {exchange}:{symbol} {timeframe} "
+            f"(requested {target_count}). Using maximum range: {_fmt_ts(rng2['min_ts'])} → {_fmt_ts(rng2['max_ts'])}"
+        )
+
+    return result
+
+
+def _fmt_ts(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M")
 
 
 class IndicatorParam(BaseModel):
@@ -66,6 +121,12 @@ class EdgeSearchRequest(BaseModel):
     walk_train_pct: float = 0.7
     monte_carlo_shuffles: int = 0
     orders: list[dict] = []  # optional order config for state machine simulation
+    sub_bar: dict | None = None  # {"enabled": true, "resolution": "1m"}
+
+
+class SubBarConfig(BaseModel):
+    enabled: bool = False
+    resolution: str = "1m"
 
 
 class SweepParam(BaseModel):
@@ -487,6 +548,58 @@ def _compute_indicators(candles):
     alias["senkou_b"] = "ichimoku_senkou_b"
     alias["chikou"] = "ichimoku_chikou_26"
 
+    # Extended aliases matching strategy_validator INDICATOR_ALIASES
+    # Ichimoku variants
+    alias["ichimoku_tenkan"] = "ichimoku_tenkan_9"
+    alias["ichimoku_kijun"] = "ichimoku_kijun_26"
+    alias["ichimoku_senkou"] = "ichimoku_senkou_a"
+    alias["ichimoku_chikou"] = "ichimoku_chikou_26"
+    alias["ichimoku_lagging_span"] = "ichimoku_chikou_26"
+    alias["ichimoku_base_line"] = "ichimoku_kijun_26"
+    alias["ichimoku_leading_span_a"] = "ichimoku_senkou_a"
+    alias["ichimoku_leading_span_b"] = "ichimoku_senkou_b"
+    alias["ichimoku_kijun_sen"] = "ichimoku_kijun_26"
+    alias["ichimoku_tenkan_sen"] = "ichimoku_tenkan_9"
+    alias["lagging_span"] = "ichimoku_chikou_26"
+    alias["leading_span_a"] = "ichimoku_senkou_a"
+    alias["leading_span_b"] = "ichimoku_senkou_b"
+    alias["base_line"] = "ichimoku_kijun_26"
+    alias["turning_line"] = "ichimoku_tenkan_9"
+    alias["tenkan_sen"] = "ichimoku_tenkan_9"
+    alias["kijun_sen"] = "ichimoku_kijun_26"
+    alias["senkou_span_a"] = "ichimoku_senkou_a"
+    alias["senkou_span_b"] = "ichimoku_senkou_b"
+    alias["senkou_span_a_26"] = "ichimoku_senkou_a"
+    alias["senkou_span_b_26"] = "ichimoku_senkou_b"
+    alias["chikou_span"] = "ichimoku_chikou_26"
+    alias["ichimoku.tenkan_sen"] = "ichimoku_tenkan_9"
+    alias["ichimoku.kijun_sen"] = "ichimoku_kijun_26"
+    alias["ichimoku.senkou_span_a"] = "ichimoku_senkou_a"
+    alias["ichimoku.senkou_span_b"] = "ichimoku_senkou_b"
+    alias["ichimoku.chikou_span"] = "ichimoku_chikou_26"
+    # Additional hallucinated/common LLM variants
+    alias["ichimoku_conversion_line"] = "ichimoku_tenkan_9"
+    alias["conversion_line"] = "ichimoku_tenkan_9"
+    alias["ichimoku_a"] = "ichimoku_senkou_a"
+    alias["ichimoku_b"] = "ichimoku_senkou_b"
+    alias["ichimoku_leading_a"] = "ichimoku_senkou_a"
+    alias["ichimoku_leading_b"] = "ichimoku_senkou_b"
+    alias["cloud_a"] = "ichimoku_senkou_a"
+    alias["cloud_b"] = "ichimoku_senkou_b"
+    # SMA/EMA numeric aliases
+    alias["sma20"] = "sma_20"
+    alias["sma50"] = "sma_50"
+    alias["sma10"] = "sma_10"
+    alias["sma200"] = "sma_200"
+    alias["ema12"] = "ema_12"
+    alias["ema26"] = "ema_26"
+    alias["rsi14"] = "rsi_14"
+    alias["atr14"] = "atr_14"
+    # Close offset aliases
+    alias["close_26_ago"] = "close"
+    alias["close_26"] = "close"
+    alias["close_ago_26"] = "close"
+
     ind["__alias__"] = alias
     return ind
 
@@ -553,7 +666,6 @@ def _fetch_and_prepare(exchange, symbol, timeframe, start_time, end_time):
     for c in candles:
         c["metrics"]["vol"] = c["v"] / max_vol * 100
 
-    import bisect
     metric_keys = ["oc", "oh", "ol", "hl", "hc", "lc", "vol"]
     pctls = {}
     for mk in metric_keys:
@@ -904,7 +1016,7 @@ def _walk_forward(candles, pctls, groups, logic, lookahead, windows, train_pct, 
     }
 
 
-def _validate_conditions(groups, logic, metric_keys, pctls):
+def _validate_conditions(groups, logic, metric_keys, pctls, indicators=None):
     """Validate all conditions against available metrics/indicators. Returns list of error messages."""
     from api.condition_registry import FLAT_REGISTRY
     valid_ids = {e["id"] for e in FLAT_REGISTRY}
@@ -913,6 +1025,15 @@ def _validate_conditions(groups, logic, metric_keys, pctls):
     # Raw price fields that _resolve_value supports
     valid_ids.update(["close", "high", "low", "open", "volume"])
     _funcs = _get_indicator_funcs()
+
+    # Add indicator keys and aliases to valid IDs
+    if indicators:
+        ind_aliases = indicators.get("__alias__", {})
+        valid_ids.update(ind_aliases.keys())
+        valid_ids.update(ind_aliases.values())
+        for k in indicators:
+            if k != "__alias__" and k != "__raw__":
+                valid_ids.add(k)
 
     errors = []
     for gi, group in enumerate(groups):
@@ -931,13 +1052,10 @@ def _validate_conditions(groups, logic, metric_keys, pctls):
                 if f"{m}_{'_'.join(vals)}" in valid_ids or f"{m}_{'_'.join(vals)}" in _funcs:
                     continue
             # Check if it's reachable via alias
-            alias_hint = ""
-            for entry in FLAT_REGISTRY:
-                if entry["id"] == m:
-                    alias_hint = ""
-                    break
-                if "comparisons" in entry and any(m in str(entry.get("outputs", [])) for _ in [1]):
-                    pass  # partial match
+            if indicators:
+                alias = indicators.get("__alias__", {})
+                if m in alias or alias.get(m) in indicators:
+                    continue
             errors.append(f"Condition #{ci+1} (group {gi+1}): unknown metric '{m}'")
     return errors
 
@@ -949,7 +1067,7 @@ def _run_single_search(exchange, symbol, timeframe, start_time, end_time,
         return {"occurrences": 0, "error": "no data"}
 
     # Validate conditions before running search
-    errs = _validate_conditions(groups, logic, ["oc", "oh", "ol", "hl", "hc", "lc", "vol"], pctls or {})
+    errs = _validate_conditions(groups, logic, ["oc", "oh", "ol", "hl", "hc", "lc", "vol"], pctls or {}, indicators)
     if errs:
         return {
             "occurrences": 0, "error": "; ".join(errs),
@@ -986,11 +1104,175 @@ def _run_single_search(exchange, symbol, timeframe, start_time, end_time,
     return stats
 
 
+# ── Sub-bar resolution helpers ──
+
+def _align_indices_to_sub(main_candles, sub_candles, main_indices):
+    """Map main-candle match indices to sub-bar entry indices."""
+    if len(main_candles) < 2 or not main_indices:
+        return []
+    period_ms = main_candles[1]["t"] - main_candles[0]["t"]
+    sub_ts = [c["t"] for c in sub_candles]
+    pairs = []
+    for i in main_indices:
+        close_ts = main_candles[i]["t"] + period_ms
+        entry = bisect.bisect_left(sub_ts, close_ts)
+        if entry < len(sub_candles):
+            pairs.append((i, entry))
+    return pairs
+
+
+def _forward_returns_intra_bar(main_candles, sub_candles, aligned_pairs,
+                               sub_lookahead, orders, direction):
+    """Forward simulation with intra-bar order fills (limit/stop within entry candle)."""
+    if len(sub_candles) < 2 or not aligned_pairs:
+        return []
+    period_ms = main_candles[1]["t"] - main_candles[0]["t"]
+    sub_ts = [c["t"] for c in sub_candles]
+    results = []
+
+    for main_i, entry_idx in aligned_pairs:
+        entry_price = None
+        ot = orders[0].get("type", "market") if orders else "market"
+        execution = orders[0].get("execution", "close") if orders else "close"
+
+        if execution == "intra" and ot == "limit":
+            limit_price = orders[0].get("price", 0)
+            main_open_ts = main_candles[main_i]["t"]
+            first_in = bisect.bisect_left(sub_ts, main_open_ts)
+            last_in = min(bisect.bisect_left(sub_ts, main_open_ts + period_ms) - 1, len(sub_candles) - 1)
+            for sj in range(first_in, last_in + 1):
+                if direction == "long":
+                    if sub_candles[sj]["l"] <= limit_price <= sub_candles[sj]["h"]:
+                        entry_price = limit_price
+                        break
+                else:
+                    if sub_candles[sj]["l"] <= limit_price <= sub_candles[sj]["h"]:
+                        entry_price = limit_price
+                        break
+
+        if entry_price is None:
+            entry_price = sub_candles[entry_idx]["c"]
+
+        exit_idx = min(entry_idx + sub_lookahead, len(sub_candles) - 1)
+        exit_price = sub_candles[exit_idx]["c"]
+        ret = (exit_price - entry_price) / entry_price * 100
+        if direction == "short":
+            ret = -ret
+
+        results.append({
+            "i": main_i,
+            "entry_t": sub_candles[entry_idx]["t"],
+            "entry": entry_price,
+            "exit_t": sub_candles[exit_idx]["t"],
+            "exit": exit_price,
+            "ret": ret,
+        })
+
+    return results
+
+
+def _run_single_search_sub_bar(exchange, symbol, timeframe, sub_resolution,
+                               start_time, end_time, groups, logic,
+                               lookahead, min_occurrences, orders=None):
+    # Main candles for pattern matching
+    candles, pctls, _, indicators = _fetch_and_prepare(
+        exchange, symbol, timeframe, start_time, end_time)
+    if candles is None:
+        return {"occurrences": 0, "error": "no main data"}
+
+    # Sub-bar candles for execution
+    sub_candles, _, _, _ = _fetch_and_prepare(
+        exchange, symbol, sub_resolution, start_time, end_time)
+    if sub_candles is None:
+        return {"occurrences": 0, "error": "no sub-bar data"}
+
+    errs = _validate_conditions(
+        groups, logic, ["oc", "oh", "ol", "hl", "hc", "lc", "vol"],
+        pctls or {}, indicators)
+    if errs:
+        return {"occurrences": 0, "error": "; ".join(errs),
+                "wins": 0, "losses": 0, "win_rate": 0, "avg_return": 0,
+                "avg_win": 0, "avg_loss": 0, "profit_factor": 0, "sharpe": 0,
+                "max_drawdown": 0, "forward_returns": [], "histogram": {"bins": [], "counts": []}}
+
+    indices = _find_matches(candles, pctls, groups, logic, indicators)
+    if len(indices) < min_occurrences:
+        return {"occurrences": len(indices),
+                "error": f"only {len(indices)} matches, need {min_occurrences}",
+                "wins": 0, "losses": 0, "win_rate": 0, "avg_return": 0,
+                "avg_win": 0, "avg_loss": 0, "profit_factor": 0, "sharpe": 0,
+                "max_drawdown": 0, "forward_returns": [], "histogram": {"bins": [], "counts": []}}
+
+    # Align indices to sub-bar
+    aligned = _align_indices_to_sub(candles, sub_candles, indices)
+    if not aligned:
+        return {"occurrences": len(indices), "error": "no sub-bar alignment",
+                "wins": 0, "losses": 0, "win_rate": 0, "avg_return": 0,
+                "avg_win": 0, "avg_loss": 0, "profit_factor": 0, "sharpe": 0,
+                "max_drawdown": 0, "forward_returns": [], "histogram": {"bins": [], "counts": []}}
+
+    # Convert lookahead: main candles → sub-bar candles
+    tf_ms = TIMEFRAMES_MS.get(timeframe, 3600000)
+    sub_tf_ms = TIMEFRAMES_MS.get(sub_resolution, 60000)
+    ratio = tf_ms // sub_tf_ms
+    sub_la = max(1, lookahead * ratio) if lookahead > 0 else len(sub_candles)
+
+    # Run forward simulation
+    has_intra = any(o.get("execution") == "intra" for o in (orders or []))
+    if orders and len(orders) > 0 and has_intra:
+        fwd = _forward_returns_intra_bar(
+            candles, sub_candles, aligned, sub_la, orders, "long")
+    else:
+        sub_indices = [p[1] for p in aligned]
+        fwd = _forward_returns(sub_candles, sub_indices, sub_la)
+
+    if not fwd:
+        return {"occurrences": len(indices), "error": "no forward data (sub-bar)",
+                "wins": 0, "losses": 0, "win_rate": 0, "avg_return": 0,
+                "avg_win": 0, "avg_loss": 0, "profit_factor": 0, "sharpe": 0,
+                "max_drawdown": 0, "forward_returns": [], "histogram": {"bins": [], "counts": []}}
+
+    stats = _compute_stats(fwd, len(indices))
+    return stats
+
+
 # ── ENDPOINTS ──
+
+class AutoDateRequest(BaseModel):
+    exchange: str
+    symbol: str
+    timeframe: str
+    target_count: int = TRAINING_CANDLES_DEFAULT
+
+
+@router.post("/edge/auto-date")
+async def edge_auto_date(req: AutoDateRequest):
+    result = await ensure_candle_pool(req.exchange, req.symbol, req.timeframe, req.target_count)
+    return result
+
 
 @router.post("/edge/search")
 async def edge_search(req: EdgeSearchRequest):
-    result = _run_single_search(
+    # Ensure candle data exists before searching
+    pool = await ensure_candle_pool(req.exchange, req.symbol, req.timeframe)
+    # If no start_time set, use the ideal start from the data pool
+    if req.start_time is None:
+        req.start_time = pool["ideal_start"]
+    if req.end_time is None:
+        req.end_time = pool.get("ideal_end", int(datetime.now().timestamp() * 1000))
+
+    sub_bar = req.sub_bar or {}
+    if sub_bar.get("enabled") and sub_bar.get("resolution", "1m") != req.timeframe:
+        await ensure_candle_pool(req.exchange, req.symbol, sub_bar.get("resolution", "1m"))
+        result = _run_single_search_sub_bar(
+            req.exchange, req.symbol, req.timeframe, sub_bar.get("resolution", "1m"),
+            req.start_time, req.end_time,
+            req.groups, req.logic, req.lookahead, req.min_occurrences,
+            orders=req.orders,
+        )
+        result["sub_bar"] = True
+    else:
+        result = _run_single_search(
         req.exchange, req.symbol, req.timeframe,
         req.start_time, req.end_time,
         req.groups, req.logic, req.lookahead, req.min_occurrences,
@@ -1582,10 +1864,11 @@ async def compute_indicators(req: IndicatorSeriesRequest):
     result = {"candles": [], "indicators": {}}
     try:
         pairs = get_available_pairs()
-        candles = query_candles(req.exchange, req.symbol, req.timeframe, limit=500)
+        candles = query_candles(req.exchange, req.symbol, req.timeframe, limit=0, desc=True)
         if not candles:
             return result
 
+        candles.reverse()
         result["candles"] = [{
             "t": c["timestamp"], "o": c["open"], "h": c["high"],
             "l": c["low"], "c": c["close"], "v": c["volume"]
@@ -1690,6 +1973,70 @@ async def compute_indicators(req: IndicatorSeriesRequest):
                     continue
                 except Exception as e:
                     result["indicators"][name] = {"error": str(e)}
+                    continue
+            elif name in ("ichimoku",):
+                try:
+                    tenkan_p = int(params.get("tenkan", 9))
+                    kijun_p = int(params.get("kijun", 26))
+                    senkou_p = int(params.get("senkou", 52))
+
+                    def _rolling_max(arr, period):
+                        out = np.empty_like(arr)
+                        for i in range(len(arr)):
+                            out[i] = np.max(arr[max(0, i - period + 1):i + 1])
+                        return out
+
+                    def _rolling_min(arr, period):
+                        out = np.empty_like(arr)
+                        for i in range(len(arr)):
+                            out[i] = np.min(arr[max(0, i - period + 1):i + 1])
+                        return out
+
+                    tenkan = (_rolling_max(high, tenkan_p) + _rolling_min(low, tenkan_p)) / 2.0
+                    kijun = (_rolling_max(high, kijun_p) + _rolling_min(low, kijun_p)) / 2.0
+                    senkou_a = (tenkan + kijun) / 2.0
+                    senkou_b = (_rolling_max(high, senkou_p) + _rolling_min(low, senkou_p)) / 2.0
+                    chikou = close.copy()
+
+                    result["indicators"]["ichimoku_tenkan"] = {
+                        "values": _to_list(tenkan, n),
+                        "label": f"Tenkan ({tenkan_p})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#e94560"),
+                        "shift": 0,
+                    }
+                    result["indicators"]["ichimoku_kijun"] = {
+                        "values": _to_list(kijun, n),
+                        "label": f"Kijun ({kijun_p})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#26a69a"),
+                        "shift": 0,
+                    }
+                    result["indicators"]["ichimoku_senkou_a"] = {
+                        "values": _to_list(senkou_a, n),
+                        "label": f"Senkou A ({tenkan_p},{kijun_p})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#42a5f5"),
+                        "shift": kijun_p,
+                    }
+                    result["indicators"]["ichimoku_senkou_b"] = {
+                        "values": _to_list(senkou_b, n),
+                        "label": f"Senkou B ({senkou_p})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#ef5350"),
+                        "shift": kijun_p,
+                    }
+                    result["indicators"]["ichimoku_chikou"] = {
+                        "values": _to_list(chikou, n),
+                        "label": f"Chikou ({kijun_p})",
+                        "pane": 0, "style": "line", "color": params.get("color", "#ab47bc"),
+                        "shift": -kijun_p,
+                    }
+                    result["indicator_groups"] = result.get("indicator_groups", {})
+                    result["indicator_groups"]["ichimoku"] = {
+                        "label": "Ichimoku Cloud",
+                        "members": ["ichimoku_tenkan", "ichimoku_kijun", "ichimoku_senkou_a", "ichimoku_senkou_b", "ichimoku_chikou"],
+                        "cloud": {"top": "ichimoku_senkou_a", "bottom": "ichimoku_senkou_b"},
+                    }
+                    continue
+                except Exception as e:
+                    result["indicators"]["ichimoku"] = {"error": str(e)}
                     continue
 
             if values is not None:

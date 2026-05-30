@@ -101,6 +101,8 @@ PROMPT_CATEGORIES = {
     ),
     "conditions_rules": (
         "CONDITION RULES:\n"
+        "- IMPORTANT: Use CANONICAL metric names ONLY from the list below. Never invent names like 'ichimoku_conversion_line' or 'ichimoku_a'. Use: ichimoku_tenkan_9, ichimoku_kijun_26, ichimoku_senkou_a, ichimoku_senkou_b, ichimoku_chikou_26.\n"
+        "- NEVER leave conditions partial. If a rule says 'above all lines', generate ALL 4 comparisons (close > tenkan, kijun, senkou_a, senkou_b AND lagging_span > tenkan, kijun, senkou_a, senkou_b). Always complete every group.\n"
         "- value: NUMBER for thresholds (e.g. value:30), or metric/indicator name for cross-comparison (e.g. value:\"ichimoku_tenkan_9\")\n"
         "- Threshold: {\"metric\":\"rsi_14\",\"op\":\"lt\",\"value\":30}\n"
         "- Cross-indicator: {\"metric\":\"close\",\"op\":\"gt\",\"value\":\"ichimoku_tenkan_9\"}\n"
@@ -122,7 +124,9 @@ PROMPT_CATEGORIES = {
         "  \"direction\": \"long_only|short_only|both\", \"lookahead\": 5, \"min_occurrences\": 10, \"mc_shuffles\": 500,\n"
         "  \"walk_forward\": true, \"walk_windows\": 5, \"walk_train_pct\": 0.7, \"start_time\": null, \"end_time\": null,\n"
         "  \"custom_orders\": [], \"custom_indicators\": [], \"custom_conditions\": [],\n"
-        "  \"trades\": {\"long\": [{\"open\": {\"conditions\": {\"logic\":\"AND\",\"groups\":[{\"logic\":\"AND\",\"conditions\":[{\"subcategory\":\"threshold\",\"metric\":\"rsi_14\",\"op\":\"lt\",\"value\":30}]}]},\"orders\":[{\"type\":\"market\",\"size\":1,\"size_type\":\"percent\",\"price\":null}]},\"close\":{\"conditions\":{\"logic\":\"AND\",\"groups\":[{\"logic\":\"AND\",\"conditions\":[{\"subcategory\":\"threshold\",\"metric\":\"rsi_14\",\"op\":\"gte\",\"value\":70}]}]},\"orders\":[{\"type\":\"market\",\"size\":1,\"size_type\":\"percent\",\"price\":null}]}}], \"short\":[]}\n"
+        "  \"trades\": {\"long\": [{\"open\": {\"conditions\": {\"logic\":\"AND\",\"groups\":[{\"logic\":\"AND\",\"conditions\":[{\"subcategory\":\"threshold\",\"metric\":\"rsi_14\",\"op\":\"lt\",\"value\":30}]}]},\"orders\":[{\"type\":\"market\",\"size\":1,\"size_type\":\"percent\",\"price\":null}]},\"close\":{\"conditions\":{\"logic\":\"AND\",\"groups\":[{\"logic\":\"AND\",\"conditions\":[{\"subcategory\":\"threshold\",\"metric\":\"rsi_14\",\"op\":\"gte\",\"value\":70}]}]},\"orders\":[{\"type\":\"market\",\"size\":1,\"size_type\":\"percent\",\"price\":null}]}}]}}\n"
+        "  NOTE: Only output 'trades.long'. The system will automatically mirror to 'trades.short' with inverted operators when the user asks for both sides.\n"
+        "  Leave 'short' as empty array []. Do NOT generate trades.short yourself.\n"
         "}}\n"
     ),
     "custom_types": _load_custom_types_summary(),
@@ -297,6 +301,11 @@ def _normalize_response(data: dict) -> dict:
     if data.get("type") != "config_update":
         return data
     resp = data.get("response", data)
+    if not isinstance(resp, dict):
+        # LLM returned a string in the "response" field instead of a config object
+        data["type"] = "message"
+        data["content"] = str(resp)
+        return data
     resp.setdefault("name", "")
     resp.setdefault("exchange", "binance")
     resp.setdefault("symbol", "BTCUSDC")
@@ -321,6 +330,32 @@ def _normalize_response(data: dict) -> dict:
             "open": {"conditions": {"logic": "AND", "groups": [{"logic": "AND", "conditions": [{"subcategory": "threshold", "metric": "oc", "op": "gt", "value": 0.2}]}]}, "orders": [{"type": "market", "size": 1, "size_type": "percent", "price": null}]},
             "close": {"conditions": {"logic": "AND", "groups": [{"logic": "AND", "conditions": [{"subcategory": "threshold", "metric": "oc", "op": "gte", "value": 1.5}]}]}, "orders": [{"type": "sl", "size": 1, "size_type": "percent", "price": 1.0}, {"type": "tp", "size": 1, "size_type": "percent", "price": 2.5}]},
         }]
+
+    # Mirror long → short when short is empty but long has conditions
+    _has_short_conds = any(
+        c.get("conditions", {}).get("groups")
+        for t in trades.get("short", [])
+        for section in ("open", "close")
+        for g in t.get(section, {}).get("conditions", {}).get("groups", [])
+        if g.get("conditions")
+    )
+    if trades["long"] and not _has_short_conds:
+        import copy
+        OP_INVERT = {"gt": "lt", "lt": "gt", "gte": "lte", "lte": "gte", "eq": "eq", "neq": "neq"}
+        def _invert_cond(c):
+            c = copy.deepcopy(c)
+            c["op"] = OP_INVERT.get(c.get("op", "gt"), "gt")
+            return c
+        def _invert_section(s):
+            s = copy.deepcopy(s)
+            conds = s.get("conditions", {})
+            for g in conds.get("groups", []):
+                g["conditions"] = [_invert_cond(c) for c in g.get("conditions", [])]
+            return s
+        trades["short"] = [{
+            "open": _invert_section(t.get("open", {})),
+            "close": _invert_section(t.get("close", {})),
+        } for t in trades["long"]]
     resp["trades"] = trades
     # Persist any custom types to disk
     _persist_custom_types(resp)

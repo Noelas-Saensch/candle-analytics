@@ -9,31 +9,34 @@ HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Candle Analytics</title>
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+html, body { height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; overflow: hidden; }
 .header { background: #16213e; padding: 8px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #0f3460; }
 .header h1 { font-size: 16px; color: #e94560; margin-right: 8px; }
 .tabs { display: flex; gap: 0; margin-right: 12px; }
 .tab { padding: 6px 14px; font-size: 12px; color: #888; cursor: pointer; border: 1px solid #0f3460; background: transparent; border-radius: 4px 4px 0 0; margin-bottom: -1px; }
 .tab:hover { color: #e0e0e0; }
 .tab.active { color: #e94560; border-color: #e94560; border-bottom-color: #16213e; background: #16213e; }
-.controls { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-.controls label { font-size: 11px; color: #888; }
-.controls select, .controls input { background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6b; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-.controls select:focus, .controls input:focus { outline: none; border-color: #e94560; }
-.controls input[type=date] { color-scheme: dark; }
-.controls .btn { background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6b; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-.controls .btn:hover { border-color: #e94560; }
-.controls .btn:disabled { opacity: .5; cursor: not-allowed; }
-.controls .btn-primary { background: #e94560; color: #fff; border: none; }
-.controls .btn-primary:hover { background: #d63851; }
-.controls .sep { width: 1px; height: 22px; background: #0f3460; margin: 0 3px; }
-#chart-wrapper { position: relative; width: 100%; height: calc(100vh - 46px); }
-#chart { width: 100%; height: 100%; }
+.controls-bar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 6px 12px; background: #16213e; border-bottom: 1px solid #0f3460; }
+.controls-bar label { font-size: 11px; color: #888; }
+.controls-bar select, .controls-bar input { background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6b; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.controls-bar select:focus, .controls-bar input:focus { outline: none; border-color: #e94560; }
+.controls-bar input[type=date] { color-scheme: dark; }
+.controls-bar .btn { background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6b; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.controls-bar .btn:hover { border-color: #e94560; }
+.controls-bar .btn:disabled { opacity: .5; cursor: not-allowed; }
+.controls-bar .btn-primary { background: #e94560; color: #fff; border: none; }
+.controls-bar .btn-primary:hover { background: #d63851; }
+.controls-bar .sep { width: 1px; height: 22px; background: #0f3460; margin: 0 3px; }
+.gear-btn { background: transparent; color: #888; border: 1px solid #1a3a6b; border-radius: 3px; padding: 4px 8px; font-size: 14px; cursor: pointer; line-height: 1; }
+.gear-btn:hover { color: #e0e0e0; border-color: #e94560; }
+#chart-wrapper { position: relative; width: 100%; height: calc(100vh - 46px - 42px); flex: 1; display: flex; flex-direction: column; }
+#chart { width: 100%; flex: 1; }
 #auto-scale-btn { position: absolute; top: 8px; right: 12px; z-index: 10; background: #16213e; color: #888; border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; font-size: 16px; cursor: pointer; line-height: 1; }
 #auto-scale-btn:hover { color: #e0e0e0; border-color: #e94560; }
 #status { position: absolute; bottom: 8px; left: 12px; z-index: 10; font-size: 11px; color: #555; }
@@ -127,12 +130,12 @@ tr:hover { background: #16213e; }
 .chart-block .cb-params select, .chart-block .cb-params input { background:#0f3460; color:#e0e0e0; border:1px solid #1a3a6b; padding:2px 6px; border-radius:3px; font-size:10px; }
 .chart-block .cb-params label { color:#888; display:inline-flex; align-items:center; gap:3px; cursor:pointer; }
 .chart-block .cb-params input[type=range] { width:50px; accent-color:#e94560; }
-.chart-block canvas { width:100%; min-height:160px; max-height:220px; background:#1a1a2e; border-radius:4px; }
+.chart-block canvas { width:100%; min-height:160px; max-height:220px; background:#f5f5f5; border-radius:4px; }
 .cb-reset { cursor:pointer; color:#888; font-size:12px; padding:2px 6px; border:1px solid #0f3460; border-radius:3px; background:transparent; }
 .cb-reset:hover { color:#e0e0e0; border-color:#e94560; }
 
 /* Indicator toolbar */
-.ind-bar { display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 12px;background:#16213e;border-bottom:1px solid #0f3460;font-size:12px; }
+.ind-bar { display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 12px;background:#16213e;border-bottom:1px solid #0f3460;font-size:12px;position:relative; }
 .ind-chip { display:inline-flex;align-items:center;gap:4px;background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer; }
 .ind-chip:hover { border-color:#e94560; }
 .ind-chip .dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
@@ -146,6 +149,10 @@ tr:hover { background: #16213e; }
 .ind-menu-item { padding:4px 8px;cursor:pointer;color:#e0e0e0;border-radius:3px;display:flex;align-items:center;gap:6px; }
 .ind-menu-item:hover { background:#0f3460;color:#e94560; }
 .ind-config { position:fixed;z-index:100;background:#16213e;border:1px solid #0f3460;border-radius:6px;padding:12px;min-width:280px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,0.5);top:50%;left:50%;transform:translate(-50%,-50%); }
+.pane-header { display:flex;align-items:center;background:#16213e;padding:2px 8px;font-size:11px;color:#888;border-bottom:1px solid #0f3460;border-top:1px solid #0f3460;cursor:default; }
+.pane-header:hover { color:#e0e0e0; }
+.pane-resize-handle { height:4px;cursor:ns-resize;background:#0f3460; }
+.pane-resize-handle:hover { background:#e94560; }
 .ind-config h3 { color:#e94560;margin-bottom:8px;font-size:14px; }
 .ind-config label { display:flex;align-items:center;gap:6px;color:#888;margin:4px 0; }
 .ind-config input[type=number] { background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;padding:3px 6px;border-radius:3px;width:80px; }
@@ -157,6 +164,31 @@ tr:hover { background: #16213e; }
 .ind-pane-toggle { background:transparent;color:#555;border:none;cursor:pointer;font-size:10px;padding:0 4px; }
 .ind-pane-toggle:hover { color:#e0e0e0; }
 .ind-pane { border-top:1px solid #0f3460;margin-top:2px; }
+.ind-config .line-section { border:1px solid #1a3a6b;border-radius:4px;padding:6px 8px;margin:6px 0;background:#0f3460; }
+.ind-config .line-section h4 { color:#e0e0e0;font-size:11px;margin:0 0 4px; }
+.ind-config .line-row { display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px; }
+.ind-config .line-row label { color:#888;margin:0;font-size:10px; }
+.ind-config .line-row input[type=color] { width:24px;height:18px;padding:0;border:none;cursor:pointer;background:transparent; }
+.ind-config .line-row input[type=number] { width:50px;font-size:10px;padding:2px 4px; }
+.ind-config .line-row select { font-size:10px;padding:2px 4px; }
+.ind-config .zone-row { display:flex;align-items:center;gap:4px;margin:2px 0;font-size:10px;color:#888; }
+.ind-config .zone-row input[type=number] { width:50px;font-size:10px;padding:2px 4px;background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;border-radius:3px; }
+.ind-config .zone-row input[type=color] { width:20px;height:16px;padding:0;border:none;cursor:pointer;background:transparent; }
+.ind-config .zone-row label { font-size:10px;color:#888;margin:0; }
+.ind-config .section-divider { border:none;border-top:1px solid #1a3a6b;margin:8px 0; }
+/* Settings modal */
+.settings-overlay { display:none; position:fixed; z-index:99; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); }
+.settings-overlay.show { display:block; }
+.settings-modal { display:none; position:fixed; z-index:100; top:50%; left:50%; transform:translate(-50%,-50%); background:#16213e; border:1px solid #0f3460; border-radius:6px; padding:16px; min-width:300px; box-shadow:0 8px 24px rgba(0,0,0,0.5); }
+.settings-modal.show { display:block; }
+.settings-modal h3 { color:#e94560; margin-bottom:12px; font-size:14px; }
+.settings-row { display:flex; align-items:center; gap:12px; margin:8px 0; flex-wrap:wrap; }
+.settings-row label { display:flex; align-items:center; gap:6px; color:#888; font-size:11px; cursor:pointer; }
+.settings-row input[type=color] { width:32px; height:24px; padding:0; border:none; cursor:pointer; background:transparent; }
+.settings-row .btn { font-size:12px; padding:4px 14px; }
+/* Crosshair legend */
+#crosshairLegend { display:none; position:absolute; z-index:15; pointer-events:none; background:rgba(22,33,62,0.9); border:1px solid #0f3460; border-radius:4px; padding:6px 10px; font-size:11px; line-height:1.6; white-space:nowrap; top:8px; left:12px; }
+/* TV-style time scale — always visible below all panes */
 </style>
 </head>
 <body>
@@ -168,25 +200,48 @@ tr:hover { background: #16213e; }
     <div class="tab" data-tab="rawdata" onclick="switchTab('rawdata')">RAW DATA</div>
     <a href="/strategy-lab" class="tab" style="text-decoration:none">Strategy Lab</a>
   </div>
-  <div class="controls">
-    <label>exchange</label>
-    <select id="exchange"></select>
-    <label>pair</label>
-    <select id="symbol"></select>
-    <label>timeframe</label>
-    <select id="timeframe">
-      <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
-      <option value="30m">30m</option><option value="1H" selected>1H</option><option value="4H">4H</option>
-      <option value="12H">12H</option><option value="1D">1D</option><option value="1W">1W</option><option value="1M">1M</option>
-    </select>
-    <label>from</label>
-    <input type="date" id="startDate">
-    <label>to</label>
-    <input type="date" id="endDate">
-    <div class="sep"></div>
-    <label style="font-size:11px;color:#888;cursor:pointer"><input type="checkbox" id="regToggle" onchange="toggleRegression()"> Reg</label>
-    <button class="btn" id="updateBtn" onclick="updateData()">Update</button>
-    <button class="btn btn-primary" id="fetchAllBtn" onclick="fetchAllData()">Fetch all</button>
+</div>
+
+<div class="controls-bar">
+  <button class="gear-btn" id="settingsGear" onclick="toggleSettings()" title="Chart settings">&#x2699;</button>
+  <label>exchange</label>
+  <select id="exchange"></select>
+  <label>pair</label>
+  <select id="symbol"></select>
+  <label>timeframe</label>
+  <select id="timeframe">
+    <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
+    <option value="30m">30m</option><option value="1H" selected>1H</option><option value="4H">4H</option>
+    <option value="12H">12H</option><option value="1D">1D</option><option value="1W">1W</option><option value="1M">1M</option>
+  </select>
+  <label>from</label>
+  <input type="date" id="startDate">
+  <label>to</label>
+  <input type="date" id="endDate">
+  <div class="sep"></div>
+  <label style="font-size:11px;color:#888;cursor:pointer"><input type="checkbox" id="regToggle" onchange="toggleRegression()"> Reg</label>
+  <button class="btn" id="updateBtn" onclick="updateData()">Update</button>
+  <button class="btn btn-primary" id="fetchAllBtn" onclick="fetchAllData()">Fetch all</button>
+</div>
+
+<!-- Settings modal -->
+<div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+<div class="settings-modal" id="settingsModal">
+  <h3>Chart Settings</h3>
+  <div class="settings-row">
+    <label>Bullish body <input type="color" id="cfg_bullBody" value="#808080"></label>
+    <label>Bearish body <input type="color" id="cfg_bearBody" value="#2d2d2d"></label>
+  </div>
+  <div class="settings-row">
+    <label>Bullish wick <input type="color" id="cfg_bullWick" value="#808080"></label>
+    <label>Bearish wick <input type="color" id="cfg_bearWick" value="#2d2d2d"></label>
+  </div>
+  <div class="settings-row">
+    <label>Chart bg <input type="color" id="cfg_chartBg" value="#f5f5f5"></label>
+  </div>
+  <div class="settings-row">
+    <button class="btn" onclick="resetChartSettings()">Reset defaults</button>
+    <button class="btn btn-primary" onclick="applyChartSettings()">Apply</button>
   </div>
 </div>
 
@@ -200,6 +255,7 @@ tr:hover { background: #16213e; }
 <div id="chart-view" class="view active">
   <div id="chart-wrapper">
     <div id="chart"></div>
+    <div id="crosshairLegend"></div>
     <button id="auto-scale-btn" title="Auto-fit chart scale" onclick="autoScale()">&#x2921;</button>
     <div id="status"></div>
     <div id="loading">loading candles...</div>
@@ -244,7 +300,7 @@ tr:hover { background: #16213e; }
 
 
 <script>
-Chart.register(ChartZoom);
+try { Chart.register(ChartZoom); } catch(e) { console.warn('ChartZoom not available — zoom disabled'); }
 const ZOOM_OPTS = {
   zoom: { wheel: { enabled: true, speed: 0.05 }, pinch: { enabled: true }, mode: 'xy' },
   pan: { enabled: true, mode: 'xy' },
@@ -286,22 +342,94 @@ function toggleRegression() {
     const candles = window._candleData;
     const n = candles.length;
     const xs = Array.from({length: n}, (_, i) => i);
-    const closes = candles.map(c => c.close);
-    const sx = xs.reduce((a, v) => a + v, 0), sy = closes.reduce((a, v) => a + v, 0);
-    const sxx = xs.reduce((a, v) => a + v * v, 0), sxy = xs.reduce((a, v, i) => a + v * closes[i], 0);
-    const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-    const intercept = (sy - slope * sx) / n;
-    const regPoints = xs.map((x, i) => ({ time: candles[i].time, value: slope * x + intercept }));
+    const ys = candles.map(c => c.close);
+    const mx = xs.reduce((a,b) => a+b, 0) / n;
+    const my = ys.reduce((a,b) => a+b, 0) / n;
+    const num = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0);
+    const den = xs.reduce((s, x) => s + (x - mx) ** 2, 0);
+    const slope = den ? num / den : 0;
+    const inter = my - slope * mx;
+    const lines = xs.map(x => ({ time: candles[x].t / 1000, value: slope * x + inter }));
     if (regSeries) { chart.removeSeries(regSeries); regSeries = null; }
-    regSeries = chart.addLineSeries({
-      color: '#e94560', lineWidth: 1, lineStyle: 2,
-      priceScaleId: 'price',
-    });
-    regSeries.setData(regPoints);
-    regSeries.applyOptions({ visible: true });
-  } else {
-    if (regSeries) { chart.removeSeries(regSeries); regSeries = null; }
+    regSeries = chart.addSeries(LightweightCharts.LineSeries, {
+      color: '#f9a825', lineWidth: 1, priceScaleId: 'left',
+    }, 0);
+    regSeries.setData(lines);
+  } else if (regSeries) {
+    chart.removeSeries(regSeries);
+    regSeries = null;
   }
+}
+
+// --- Chart settings (candle colors + bg) ---
+var CHART_SETTINGS_KEY = 'candle_analytics_chart_settings';
+
+var CHART_SETTINGS_DEFAULTS = {
+  bullBody: '#808080',
+  bearBody: '#2d2d2d',
+  bullWick: '#808080',
+  bearWick: '#2d2d2d',
+  chartBg: '#f5f5f5',
+};
+
+function loadChartSettings() {
+  try {
+    var saved = JSON.parse(localStorage.getItem(CHART_SETTINGS_KEY));
+    if (saved) return Object.assign({}, CHART_SETTINGS_DEFAULTS, saved);
+  } catch(_) {}
+  return Object.assign({}, CHART_SETTINGS_DEFAULTS);
+}
+
+function saveChartSettings(s) {
+  try { localStorage.setItem(CHART_SETTINGS_KEY, JSON.stringify(s)); } catch(_) {}
+}
+
+function applyChartSettings() {
+  var s = {
+    bullBody: document.getElementById('cfg_bullBody').value,
+    bearBody: document.getElementById('cfg_bearBody').value,
+    bullWick: document.getElementById('cfg_bullWick').value,
+    bearWick: document.getElementById('cfg_bearWick').value,
+    chartBg: document.getElementById('cfg_chartBg').value,
+  };
+  saveChartSettings(s);
+  if (candleSeries) {
+    candleSeries.applyOptions({
+      upColor: s.bullBody, downColor: s.bearBody,
+      borderUpColor: s.bullBody, borderDownColor: s.bearBody,
+      wickUpColor: s.bullWick, wickDownColor: s.bearWick,
+    });
+  }
+  if (chart) {
+    chart.applyOptions({ layout: { background: { color: s.chartBg } } });
+  }
+  closeSettings();
+}
+
+function resetChartSettings() {
+  var d = CHART_SETTINGS_DEFAULTS;
+  document.getElementById('cfg_bullBody').value = d.bullBody;
+  document.getElementById('cfg_bearBody').value = d.bearBody;
+  document.getElementById('cfg_bullWick').value = d.bullWick;
+  document.getElementById('cfg_bearWick').value = d.bearWick;
+  document.getElementById('cfg_chartBg').value = d.chartBg;
+  applyChartSettings();
+}
+
+function toggleSettings() {
+  var s = loadChartSettings();
+  document.getElementById('cfg_bullBody').value = s.bullBody;
+  document.getElementById('cfg_bearBody').value = s.bearBody;
+  document.getElementById('cfg_bullWick').value = s.bullWick;
+  document.getElementById('cfg_bearWick').value = s.bearWick;
+  document.getElementById('cfg_chartBg').value = s.chartBg;
+  document.getElementById('settingsOverlay').classList.add('show');
+  document.getElementById('settingsModal').classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('show');
+  document.getElementById('settingsModal').classList.remove('show');
 }
 
 // --- Indicator overlay management ---
@@ -311,27 +439,88 @@ var indicatorPanes = {};
 var nextPaneId = 1;
 
 var INDICATOR_CATALOG = {
+  "Cloud": [
+    { name: "ichimoku", label: "Ichimoku Cloud", params: { tenkan: 9, kijun: 26, senkou: 52 }, defaults: { tenkan: 9, kijun: 26, senkou: 52, color: "#26a69a" }, paneMode: "main" },
+  ],
   "Trend": [
-    { name: "sma", label: "SMA", params: { period: 20 }, defaults: { period: 20, color: "#26a69a" } },
-    { name: "ema", label: "EMA", params: { period: 20 }, defaults: { period: 20, color: "#e94560" } },
-    { name: "bbands", label: "Bollinger Bands", params: { period: 20, stddev: 2 }, defaults: { period: 20, stddev: 2, color: "#e94560" } },
-    { name: "vwap", label: "VWAP", params: {}, defaults: { color: "#f9a825" } },
-    { name: "adx", label: "ADX", params: { period: 14 }, defaults: { period: 14, color: "#f9a825" } },
+    { name: "sma", label: "SMA", params: { period: 20 }, defaults: { period: 20, color: "#26a69a" }, paneMode: "main" },
+    { name: "ema", label: "EMA", params: { period: 20 }, defaults: { period: 20, color: "#e94560" }, paneMode: "main" },
+    { name: "bbands", label: "Bollinger Bands", params: { period: 20, stddev: 2 }, defaults: { period: 20, stddev: 2, color: "#e94560" }, paneMode: "main" },
+    { name: "vwap", label: "VWAP", params: {}, defaults: { color: "#f9a825" }, paneMode: "main" },
   ],
   "Oscillators": [
-    { name: "rsi", label: "RSI", params: { period: 14 }, defaults: { period: 14, color: "#ab47bc" } },
-    { name: "stoch", label: "Stochastic", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" } },
-    { name: "macd", label: "MACD", params: { fast: 12, slow: 26, signal: 9 }, defaults: { fast: 12, slow: 26, signal: 9, color: "#26a69a" } },
-    { name: "cci", label: "CCI", params: { period: 20 }, defaults: { period: 20, color: "#7b1fa2" } },
-    { name: "mfi", label: "MFI", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" } },
-    { name: "williams_r", label: "Williams %R", params: { period: 14 }, defaults: { period: 14, color: "#ef5350" } },
+    { name: "rsi", label: "RSI", params: { period: 14 }, defaults: { period: 14, color: "#ab47bc" }, paneMode: "shared" },
+    { name: "stoch", label: "Stochastic", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" }, paneMode: "shared" },
+    { name: "macd", label: "MACD", params: { fast: 12, slow: 26, signal: 9 }, defaults: { fast: 12, slow: 26, signal: 9, color: "#26a69a" }, paneMode: "shared" },
+    { name: "cci", label: "CCI", params: { period: 20 }, defaults: { period: 20, color: "#7b1fa2" }, paneMode: "shared" },
+    { name: "mfi", label: "MFI", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" }, paneMode: "shared" },
+    { name: "williams_r", label: "Williams %R", params: { period: 14 }, defaults: { period: 14, color: "#ef5350" }, paneMode: "shared" },
+    { name: "adx", label: "ADX", params: { period: 14 }, defaults: { period: 14, color: "#f9a825" }, paneMode: "shared" },
   ],
   "Volatility": [
-    { name: "atr", label: "ATR", params: { period: 14 }, defaults: { period: 14, color: "#ff7043" } },
+    { name: "atr", label: "ATR", params: { period: 14 }, defaults: { period: 14, color: "#ff7043" }, paneMode: "shared" },
   ],
   "Volume": [
-    { name: "obv", label: "OBV", params: {}, defaults: { color: "#42a5f5" } },
+    { name: "obv", label: "OBV", params: {}, defaults: { color: "#42a5f5" }, paneMode: "dedicated" },
   ],
+};
+
+// Per-line configuration for multi-line indicators (TV-style)
+var INDICATOR_LINES = {
+  "ichimoku": {
+    members: ["ichimoku_tenkan", "ichimoku_kijun", "ichimoku_senkou_a", "ichimoku_senkou_b", "ichimoku_chikou"],
+    cloud: true,
+    defaults: {
+      "ichimoku_tenkan": { color: "#4fc3f7", width: 1, visible: true, label: "Tenkan" },
+      "ichimoku_kijun": { color: "#4fc3f7", width: 2, visible: true, label: "Kijun" },
+      "ichimoku_senkou_a": { color: "#000000", width: 1, visible: true, label: "Senkou A" },
+      "ichimoku_senkou_b": { color: "#000000", width: 2, visible: true, label: "Senkou B" },
+      "ichimoku_chikou": { color: "#ff9800", width: 1, visible: true, label: "Chikou" },
+      "cloud": { green: "rgba(38,166,154,0.9)", red: "rgba(239,83,80,0.9)" },
+    },
+  },
+  "bbands": {
+    members: ["bbands_upper", "bbands_middle", "bbands_lower"],
+    defaults: {
+      "bbands_upper": { color: "#e94560", width: 1, visible: true, label: "Upper" },
+      "bbands_middle": { color: "#e94560", width: 2, visible: true, label: "Middle" },
+      "bbands_lower": { color: "#e94560", width: 1, visible: true, label: "Lower" },
+    },
+  },
+  "macd": {
+    members: ["macd_line", "macd_signal", "macd_histogram"],
+    defaults: {
+      "macd_line": { color: "#26a69a", width: 2, visible: true, label: "MACD" },
+      "macd_signal": { color: "#e94560", width: 2, visible: true, label: "Signal" },
+      "macd_histogram": { color: "#7b1fa2", visible: true, label: "Histogram" },
+    },
+  },
+  "stoch": {
+    members: ["stoch_k", "stoch_d"],
+    defaults: {
+      "stoch_k": { color: "#26a69a", width: 2, visible: true, label: "%K" },
+      "stoch_d": { color: "#e94560", width: 2, visible: true, label: "%D" },
+    },
+  },
+  "rsi": { members: ["rsi"], defaults: { "rsi": { color: "#ab47bc", width: 2, visible: true, label: "RSI" } } },
+  "sma": { members: ["sma"], defaults: { "sma": { color: "#26a69a", width: 2, visible: true, label: "SMA" } } },
+  "ema": { members: ["ema"], defaults: { "ema": { color: "#e94560", width: 2, visible: true, label: "EMA" } } },
+  "vwap": { members: ["vwap"], defaults: { "vwap": { color: "#f9a825", width: 2, visible: true, label: "VWAP" } } },
+  "cci": { members: ["cci"], defaults: { "cci": { color: "#7b1fa2", width: 2, visible: true, label: "CCI" } } },
+  "mfi": { members: ["mfi"], defaults: { "mfi": { color: "#26a69a", width: 2, visible: true, label: "MFI" } } },
+  "williams_r": { members: ["williams_r"], defaults: { "williams_r": { color: "#ef5350", width: 2, visible: true, label: "Williams %R" } } },
+  "adx": { members: ["adx"], defaults: { "adx": { color: "#f9a825", width: 2, visible: true, label: "ADX" } } },
+  "atr": { members: ["atr"], defaults: { "atr": { color: "#ff7043", width: 2, visible: true, label: "ATR" } } },
+  "obv": { members: ["obv"], defaults: { "obv": { color: "#42a5f5", width: 2, visible: true, label: "OBV" } } },
+};
+
+// Zone defaults for momentum oscillators
+var INDICATOR_ZONES = {
+  "rsi": { levels: [{ value: 70, color: "#ef5350", label: "Overbought" }, { value: 50, color: "#888", label: "Mid" }, { value: 30, color: "#26a69a", label: "Oversold" }] },
+  "stoch": { levels: [{ value: 80, color: "#ef5350", label: "Overbought" }, { value: 50, color: "#888", label: "Mid" }, { value: 20, color: "#26a69a", label: "Oversold" }] },
+  "williams_r": { levels: [{ value: -20, color: "#ef5350", label: "Overbought" }, { value: -50, color: "#888", label: "Mid" }, { value: -80, color: "#26a69a", label: "Oversold" }] },
+  "cci": { levels: [{ value: 100, color: "#ef5350", label: "Overbought" }, { value: 0, color: "#888", label: "Mid" }, { value: -100, color: "#26a69a", label: "Oversold" }] },
+  "mfi": { levels: [{ value: 80, color: "#ef5350", label: "Overbought" }, { value: 50, color: "#888", label: "Mid" }, { value: 20, color: "#26a69a", label: "Oversold" }] },
 };
 
 function showIndMenu() {
@@ -363,9 +552,35 @@ function showIndMenu() {
   }, 10);
 }
 
+function initLineSettings(name) {
+  var lineCfg = INDICATOR_LINES[name];
+  if (!lineCfg || !lineCfg.members) return {};
+  var lines = {};
+  for (var m = 0; m < lineCfg.members.length; m++) {
+    var member = lineCfg.members[m];
+    var def = (lineCfg.defaults && lineCfg.defaults[member]) || { color: "#26a69a", width: 2, visible: true };
+    lines[member] = { color: def.color, width: def.width || 2, visible: def.visible !== false, label: def.label || member };
+  }
+  if (lineCfg.cloud) {
+    var cdef = (lineCfg.defaults && lineCfg.defaults.cloud) || { green: "rgba(38,166,154,0.2)", red: "rgba(239,83,80,0.2)" };
+    lines.cloud = { green: cdef.green, red: cdef.red };
+  }
+  return lines;
+}
+
+function initZoneSettings(name) {
+  var zdef = INDICATOR_ZONES[name];
+  if (!zdef) return null;
+  var zones = {};
+  for (var z = 0; z < zdef.levels.length; z++) {
+    var lv = zdef.levels[z];
+    zones[lv.label] = { value: lv.value, color: lv.color, label: lv.label, visible: true };
+  }
+  return zones;
+}
+
 function addIndicator(name) {
   document.getElementById("indMenu").classList.remove("show");
-  // Find catalog entry
   var entry = null;
   for (var cat in INDICATOR_CATALOG) {
     for (var i = 0; i < INDICATOR_CATALOG[cat].length; i++) {
@@ -374,12 +589,14 @@ function addIndicator(name) {
     if (entry) break;
   }
   if (!entry) return;
-  var params = JSON.parse(JSON.stringify(entry.defaults));
-  // Avoid duplicates
   for (var j = 0; j < activeIndicators.length; j++) {
     if (activeIndicators[j].name === name) return;
   }
-  activeIndicators.push({ name: name, label: entry.label, params: params });
+  var params = JSON.parse(JSON.stringify(entry.defaults));
+  params.lines = initLineSettings(name);
+  var zones = initZoneSettings(name);
+  if (zones) params.zones = zones;
+  activeIndicators.push({ name: name, label: entry.label, params: params, paneMode: entry.paneMode || "shared" });
   renderIndChips();
   computeAndRenderIndicators();
 }
@@ -413,16 +630,11 @@ function removeIndicator(idx) {
     }
     delete indicatorSeries[ind.name];
   }
-  // Remove pane if exists
-  if (indicatorPanes[ind.name]) {
-    // LightweightCharts 4.x doesn't support removing panes via API
-    // We just hide the pane div
-    var paneEl = document.getElementById("pane_" + ind.name);
-    if (paneEl) { paneEl.style.display = "none"; }
-    delete indicatorPanes[ind.name];
-  }
   activeIndicators.splice(idx, 1);
   renderIndChips();
+  if (activeIndicators.filter(function(a) { return a.name === ind.name; }).length === 0) {
+    computeAndRenderIndicators();
+  }
 }
 
 function openIndicatorConfig(idx) {
@@ -436,7 +648,8 @@ function openIndicatorConfig(idx) {
   panel.className = "ind-config";
   panel.onclick = function(e) { e.stopPropagation(); };
   var html = '<h3>' + ind.label + '</h3>';
-  html += '<label>Color <input type="color" id="icfg_color" value="' + (ind.params.color || "#26a69a") + '"></label>';
+
+  // ── Parameter fields ──
   if (ind.params.period !== undefined) {
     html += '<label>Period <input type="number" id="icfg_period" value="' + ind.params.period + '" min="2" max="200"></label>';
   }
@@ -452,12 +665,76 @@ function openIndicatorConfig(idx) {
   if (ind.params.signal !== undefined) {
     html += '<label>Signal <input type="number" id="icfg_signal" value="' + ind.params.signal + '" min="2" max="100"></label>';
   }
-  html += '<label>Line width <select id="icfg_width"><option value="1" ' + ((ind.params.width||2)==1?'selected':'') + '>1</option><option value="2" ' + ((ind.params.width||2)==2?'selected':'') + '>2</option><option value="3" ' + ((ind.params.width||2)==3?'selected':'') + '>3</option><option value="4" ' + ((ind.params.width||2)==4?'selected':'') + '>4</option></select></label>';
-  html += '<div style="margin-top:8px">';
+  if (ind.params.tenkan !== undefined) {
+    html += '<label>Tenkan <input type="number" id="icfg_tenkan" value="' + ind.params.tenkan + '" min="2" max="200"></label>';
+  }
+  if (ind.params.kijun !== undefined) {
+    html += '<label>Kijun <input type="number" id="icfg_kijun" value="' + ind.params.kijun + '" min="2" max="200"></label>';
+  }
+  if (ind.params.senkou !== undefined) {
+    html += '<label>Senkou <input type="number" id="icfg_senkou" value="' + ind.params.senkou + '" min="2" max="200"></label>';
+  }
+
+  // ── Per-line settings (TV-style) ──
+  var lineCfg = INDICATOR_LINES[ind.name];
+  if (lineCfg && lineCfg.members && lineCfg.members.length > 0) {
+    html += '<hr class="section-divider">';
+    for (var li = 0; li < lineCfg.members.length; li++) {
+      var member = lineCfg.members[li];
+      var ls = (ind.params.lines && ind.params.lines[member]) || {};
+      var def = (lineCfg.defaults && lineCfg.defaults[member]) || {};
+      var lc = ls.color || def.color || "#26a69a";
+      var lw = ls.width || def.width || 2;
+      var lv = ls.visible !== false;
+      var ll = def.label || member;
+      html += '<div class="line-section">';
+      html += '<h4>' + ll + '</h4>';
+      html += '<div class="line-row">';
+      html += '<label><input type="checkbox" id="icfg_vis_' + member + '" ' + (lv ? 'checked' : '') + ' onchange="document.getElementById(' + "'icfg_line_" + member + "'" + ').style.opacity=this.checked?1:0.3"> Show</label>';
+      html += '<label>Color <input type="color" id="icfg_color_' + member + '" value="' + lc + '"></label>';
+      html += '<label>Width <select id="icfg_width_' + member + '">';
+      for (var wi = 1; wi <= 4; wi++) {
+        html += '<option value="' + wi + '"' + (lw == wi ? ' selected' : '') + '>' + wi + '</option>';
+      }
+      html += '</select></label>';
+      html += '</div></div>';
+    }
+    // Cloud settings
+    if (lineCfg.cloud) {
+      var cs = (ind.params.lines && ind.params.lines.cloud) || {};
+      var cdef = (lineCfg.defaults && lineCfg.defaults.cloud) || {};
+      var cg = cs.green || cdef.green || "rgba(38,166,154,0.2)";
+      var cr = cs.red || cdef.red || "rgba(239,83,80,0.2)";
+      html += '<div class="line-section">';
+      html += '<h4>Cloud Fill</h4>';
+      html += '<div class="line-row">';
+      html += '<label>Bull <input type="color" id="icfg_cloud_green" value="' + cg.replace(/[^#a-fA-F0-9]/g,"").slice(0,7) + '" title="Green cloud color"></label>';
+      html += '<label>Bear <input type="color" id="icfg_cloud_red" value="' + cr.replace(/[^#a-fA-F0-9]/g,"").slice(0,7) + '" title="Red cloud color"></label>';
+      html += '<label>Opacity <select id="icfg_cloud_opacity"><option value="0.1">10%</option><option value="0.15">15%</option><option value="0.2" selected>20%</option><option value="0.3">30%</option><option value="0.4">40%</option><option value="0.5">50%</option></select></label>';
+      html += '</div></div>';
+    }
+  }
+
+  // ── Zone settings (momentum oscillators) ──
+  if (ind.params.zones) {
+    html += '<hr class="section-divider">';
+    html += '<div class="line-section"><h4>Levels / Zones</h4>';
+    for (var zk in ind.params.zones) {
+      var zv = ind.params.zones[zk];
+      html += '<div class="zone-row">';
+      html += '<label><input type="checkbox" id="icfg_zone_vis_' + zk + '" ' + (zv.visible !== false ? 'checked' : '') + '></label>';
+      html += '<label>' + zv.label + '</label>';
+      html += '<input type="number" id="icfg_zone_val_' + zk + '" value="' + zv.value + '" step="1">';
+      html += '<input type="color" id="icfg_zone_color_' + zk + '" value="' + zv.color + '">';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '<hr class="section-divider">';
   html += '<button class="btn btn-primary" onclick="applyIndicatorConfig(' + idx + ')">Apply</button> ';
   html += '<button class="btn" onclick="closeIndicatorConfig()">Cancel</button>';
   html += '<button class="btn" style="float:right;color:#ef5350" onclick="closeIndicatorConfig();removeIndicator(' + idx + ')">Remove</button>';
-  html += '</div>';
   panel.innerHTML = html;
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -471,23 +748,68 @@ function closeIndicatorConfig() {
 function applyIndicatorConfig(idx) {
   var ind = activeIndicators[idx];
   if (!ind) return;
-  var colorEl = document.getElementById("icfg_color");
-  if (colorEl) ind.params.color = colorEl.value;
-  var periodEl = document.getElementById("icfg_period");
-  if (periodEl) ind.params.period = parseInt(periodEl.value) || 14;
-  var stddevEl = document.getElementById("icfg_stddev");
-  if (stddevEl) ind.params.stddev = parseFloat(stddevEl.value) || 2;
-  var fastEl = document.getElementById("icfg_fast");
-  if (fastEl) ind.params.fast = parseInt(fastEl.value) || 12;
-  var slowEl = document.getElementById("icfg_slow");
-  if (slowEl) ind.params.slow = parseInt(slowEl.value) || 26;
-  var signalEl = document.getElementById("icfg_signal");
-  if (signalEl) ind.params.signal = parseInt(signalEl.value) || 9;
-  var widthEl = document.getElementById("icfg_width");
-  if (widthEl) ind.params.width = parseInt(widthEl.value) || 2;
+
+  // Read basic params
+  var paramFields = ["period", "stddev", "fast", "slow", "signal", "tenkan", "kijun", "senkou"];
+  for (var pi = 0; pi < paramFields.length; pi++) {
+    var el = document.getElementById("icfg_" + paramFields[pi]);
+    if (el) ind.params[paramFields[pi]] = parseFloat(el.value) || paramFields[pi] === "stddev" ? parseFloat(el.value) || 2 : parseInt(el.value) || 1;
+  }
+
+  // Read per-line settings
+  var lineCfg = INDICATOR_LINES[ind.name];
+  if (lineCfg && lineCfg.members) {
+    if (!ind.params.lines) ind.params.lines = {};
+    for (var li = 0; li < lineCfg.members.length; li++) {
+      var member = lineCfg.members[li];
+      var visEl = document.getElementById("icfg_vis_" + member);
+      var colEl = document.getElementById("icfg_color_" + member);
+      var widEl = document.getElementById("icfg_width_" + member);
+      if (visEl || colEl || widEl) {
+        ind.params.lines[member] = {
+          visible: visEl ? visEl.checked : true,
+          color: colEl ? colEl.value : "#26a69a",
+          width: widEl ? parseInt(widEl.value) || 2 : 2,
+        };
+      }
+    }
+    // Cloud settings
+    if (lineCfg.cloud) {
+      var cgEl = document.getElementById("icfg_cloud_green");
+      var crEl = document.getElementById("icfg_cloud_red");
+      var coEl = document.getElementById("icfg_cloud_opacity");
+      if (cgEl || crEl || coEl) {
+        var opacity = coEl ? parseFloat(coEl.value) : 0.2;
+        ind.params.lines.cloud = {
+          green: cgEl ? hexToRgba(cgEl.value, opacity) : "rgba(38,166,154,0.2)",
+          red: crEl ? hexToRgba(crEl.value, opacity) : "rgba(239,83,80,0.2)",
+        };
+      }
+    }
+  }
+
+  // Read zone settings
+  if (ind.params.zones) {
+    for (var zk in ind.params.zones) {
+      var zvisEl = document.getElementById("icfg_zone_vis_" + zk);
+      var zvalEl = document.getElementById("icfg_zone_val_" + zk);
+      var zcolEl = document.getElementById("icfg_zone_color_" + zk);
+      if (zvisEl) ind.params.zones[zk].visible = zvisEl.checked;
+      if (zvalEl) ind.params.zones[zk].value = parseFloat(zvalEl.value) || 0;
+      if (zcolEl) ind.params.zones[zk].color = zcolEl.value;
+    }
+  }
+
   closeIndicatorConfig();
   renderIndChips();
   computeAndRenderIndicators();
+}
+
+function hexToRgba(hex, alpha) {
+  var r = parseInt(hex.slice(1, 3), 16) || 0;
+  var g = parseInt(hex.slice(3, 5), 16) || 0;
+  var b = parseInt(hex.slice(5, 7), 16) || 0;
+  return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
 }
 
 function showStatus(msg, isError) {
@@ -504,7 +826,7 @@ function computeAndRenderIndicators() {
     indicators: activeIndicators.map(function(ind) {
       var params = {};
       for (var k in ind.params) {
-        if (k !== "color" && k !== "width" && k !== "label") params[k] = ind.params[k];
+        if (k !== "color" && k !== "width" && k !== "label" && k !== "lines" && k !== "zones") params[k] = ind.params[k];
       }
       return { name: ind.name, params: params };
     }),
@@ -525,10 +847,199 @@ function computeAndRenderIndicators() {
     .catch(function(e) { showStatus("Indicator compute failed: " + e.message, true); });
 }
 
-var _indicatorPaneCreated = false;
+function findCatalogEntry(name) {
+  for (var cat in INDICATOR_CATALOG) {
+    for (var i = 0; i < INDICATOR_CATALOG[cat].length; i++) {
+      if (INDICATOR_CATALOG[cat][i].name === name) return INDICATOR_CATALOG[cat][i];
+    }
+  }
+  return null;
+}
+
+var _panes = {};
+var _paneIndicators = {};
+var _nextPaneNum = 1;
+var _ichimokuCloudData = null;
+
+function getOrCreatePane(mode, indicatorName) {
+  if (mode === "main") return 0;
+  var shared = false;
+  if (mode === "shared") shared = true;
+  for (var pid in _panes) {
+    var p = _panes[pid];
+    if (shared && p.mode === "shared") return parseInt(pid);
+  }
+  var num = _nextPaneNum++;
+  var height = shared ? 80 : 120;
+  // Pane will be created implicitly by addSeries(..., paneIndex) later
+  _panes[num] = { mode: shared ? "shared" : "dedicated", height: height };
+  _paneIndicators[num] = [];
+  return num;
+}
+
+function drawCloud() {
+  if (!chart || !_ichimokuCloudData) return;
+  var d = _ichimokuCloudData;
+  var canvas = d.canvas;
+  if (!canvas) return;
+  var w = d._width || 0, h = d._height || 0;
+  if (w < 10 || h < 10) return;
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  var ctx = canvas.getContext("2d");
+  var ts = chart.timeScale();
+  ctx.clearRect(0, 0, w, h);
+  var xA = [], yA = [], xB = [], yB = [];
+  var pts = d.points;
+  var ref = d.refSeries;
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i];
+    var x = ts.timeToCoordinate(p.time);
+    if (x === null) continue;
+    var ya = ref ? ref.priceToCoordinate(p.a) : null;
+    var yb = ref ? ref.priceToCoordinate(p.b) : null;
+    if (ya === null || yb === null) continue;
+    xA.push(x); yA.push(ya); xB.push(x); yB.push(yb);
+  }
+  if (xA.length < 2) return;
+  var col = d.colors || { green: "rgba(38,166,154,0.2)", red: "rgba(239,83,80,0.2)" };
+  for (var i = 0; i < xA.length - 1; i++) {
+    var midA = (yA[i] + yA[i+1]) / 2;
+    var midB = (yB[i] + yB[i+1]) / 2;
+    ctx.beginPath();
+    ctx.moveTo(xA[i], yA[i]);
+    ctx.lineTo(xA[i+1], yA[i+1]);
+    ctx.lineTo(xB[i+1], yB[i+1]);
+    ctx.lineTo(xB[i], yB[i]);
+    ctx.closePath();
+    ctx.fillStyle = midA <= midB ? col.green : col.red;
+    ctx.fill();
+  }
+}
+
+function removeCloudOverlay() {
+  if (_ichimokuCloudData && _ichimokuCloudData._unsub) {
+    _ichimokuCloudData._unsub();
+  }
+  if (_ichimokuCloudData && _ichimokuCloudData._resizeObs) {
+    _ichimokuCloudData._resizeObs.disconnect();
+  }
+  _ichimokuCloudData = null;
+  var old = document.getElementById("cloudOverlay");
+  if (old) old.parentNode.removeChild(old);
+}
+
+function renderIchimokuCloud(candles, senkouAName, senkouBName, inds) {
+  removeCloudOverlay();
+
+  // Resolve cloud colors from active indicator settings
+  var cloudColors = { green: "rgba(38,166,154,0.2)", red: "rgba(239,83,80,0.2)" };
+  for (var aa = 0; aa < activeIndicators.length; aa++) {
+    if (activeIndicators[aa].name === "ichimoku" && activeIndicators[aa].params.lines && activeIndicators[aa].params.lines.cloud) {
+      var cl = activeIndicators[aa].params.lines.cloud;
+      cloudColors.green = cl.green || cloudColors.green;
+      cloudColors.red = cl.red || cloudColors.red;
+      break;
+    }
+  }
+
+  var sa = inds[senkouAName];
+  var sb = inds[senkouBName];
+  if (!sa || !sb || sa.error || sb.error) return;
+  var aVals = sa.values;
+  var bVals = sb.values;
+  if (!aVals || !bVals) return;
+
+  var cloudShift = sa.shift || 0;
+  var barMs = candles.length > 1 ? candles[candles.length - 1].t - candles[candles.length - 2].t : 60000;
+  var points = [];
+  for (var i = 0; i < Math.min(aVals.length, bVals.length, candles.length); i++) {
+    if (aVals[i] === null || aVals[i] === undefined) continue;
+    if (bVals[i] === null || bVals[i] === undefined) continue;
+    var idx = i + cloudShift;
+    var t;
+    if (idx >= 0 && idx < candles.length) {
+      t = Math.floor(candles[idx].t / 1000);
+    } else if (idx >= candles.length) {
+      t = Math.floor((candles[candles.length - 1].t + (idx - candles.length + 1) * barMs) / 1000);
+    } else {
+      t = Math.floor((candles[0].t + idx * barMs) / 1000);
+    }
+    points.push({ time: t, a: aVals[i], b: bVals[i] });
+  }
+  if (points.length === 0) return;
+
+  var seriesA = indicatorSeries[senkouAName];
+  var seriesB = indicatorSeries[senkouBName];
+  var refSeries = null;
+  for (var k in seriesA) { refSeries = seriesA[k]; break; }
+  if (!refSeries) for (var k in seriesB) { refSeries = seriesB[k]; break; }
+  if (!refSeries) return;
+
+  _ichimokuCloudData = { points: points, colors: cloudColors, refSeries: refSeries };
+
+  // Clean up previous canvas if it exists; always create a fresh one
+  var oldCanvas = document.getElementById("cloudOverlay");
+  if (oldCanvas) oldCanvas.parentNode.removeChild(oldCanvas);
+
+  var container = document.getElementById("chart");
+  var canvas = document.createElement("canvas");
+  canvas.id = "cloudOverlay";
+  canvas.style.cssText = "position:absolute;top:0;left:0;pointer-events:none;z-index:10;";
+  container.style.position = "relative";
+  container.appendChild(canvas);
+
+  _ichimokuCloudData.canvas = canvas;
+  _ichimokuCloudData.container = container;
+
+  // Cache canvas dimensions via ResizeObserver (no getBoundingClientRect in drawCloud)
+  var ro = new ResizeObserver(function(entries) {
+    for (var ei = 0; ei < entries.length; ei++) {
+      var cr = entries[ei].contentRect;
+      if (_ichimokuCloudData) {
+        _ichimokuCloudData._width = Math.round(cr.width);
+        _ichimokuCloudData._height = Math.round(cr.height);
+      }
+    }
+    window._cloudDirty = true;
+  });
+  ro.observe(container);
+  _ichimokuCloudData._resizeObs = ro;
+
+  // Set initial dimensions from offsetWidth/offsetHeight (cached, no forced layout)
+  _ichimokuCloudData._width = Math.round(container.offsetWidth);
+  _ichimokuCloudData._height = Math.round(container.offsetHeight);
+
+  // Single subscription sets dirty flag — no pile-up (cleaned up in removeCloudOverlay)
+  var cloudRangeHandler = function() { window._cloudDirty = true; };
+  chart.timeScale().subscribeVisibleTimeRangeChange(cloudRangeHandler);
+  _ichimokuCloudData._cloudRangeHandler = cloudRangeHandler;
+  _ichimokuCloudData._unsub = function() {
+    try { chart.timeScale().unsubscribeVisibleTimeRangeChange(cloudRangeHandler); } catch(_) {}
+  };
+
+  window._cloudDirty = true;
+
+  // rAF loop — only checks dirty flag, no polling of getVisibleLogicalRange
+  if (!window._cloudLoopRunning) {
+    window._cloudLoopRunning = true;
+    (function tick() {
+      if (!_ichimokuCloudData || !chart || !document.getElementById("cloudOverlay")) {
+        window._cloudLoopRunning = false;
+        return;
+      }
+      try {
+        if (window._cloudDirty) {
+          window._cloudDirty = false;
+          drawCloud();
+        }
+      } catch(_) {}
+      window._cloudLoopId = requestAnimationFrame(tick);
+    })();
+  }
+}
 
 function renderIndicatorSeries(data) {
-  // Remove old series
   for (var name in indicatorSeries) {
     var seriesList = indicatorSeries[name];
     for (var s in seriesList) {
@@ -537,93 +1048,188 @@ function renderIndicatorSeries(data) {
   }
   indicatorSeries = {};
 
-  // Remove indicator pane if it exists
-  if (chart && _indicatorPaneCreated) {
-    try { chart.removePane(_indicatorPane); } catch(_) {}
-    _indicatorPaneCreated = false;
+  for (var pid in _panes) {
+    if (chart) { try { chart.removePane(parseInt(pid)); } catch(_) {} }
+    var header = document.getElementById("paneHeader_" + pid);
+    if (header) header.parentNode.removeChild(header);
+    var handle = document.getElementById("paneHandle_" + pid);
+    if (handle) handle.parentNode.removeChild(handle);
   }
+  _panes = {};
+  _paneIndicators = {};
+  removeCloudOverlay();
 
   var inds = data.indicators;
   if (!inds) return;
+  var groups = data.indicator_groups || {};
 
-  var needsPane = false;
-  for (var name in inds) {
-    var ind = inds[name];
-    if (!ind.error && ind.values && ind.pane > 0) { needsPane = true; break; }
-  }
-
-  if (needsPane) {
-    _indicatorPane = chart.addPane({ height: 120 });
-    _indicatorPaneCreated = true;
+  var paneAssignments = {};
+  for (var a = 0; a < activeIndicators.length; a++) {
+    var act = activeIndicators[a];
+    var entry = findCatalogEntry(act.name);
+    var mode = entry ? entry.paneMode : "shared";
+    act.paneMode = mode;
+    var pid;
+    var assignKey = mode === "dedicated" ? act.name : mode;
+    if (paneAssignments[assignKey] !== undefined) {
+      pid = paneAssignments[assignKey];
+    } else {
+      pid = getOrCreatePane(mode, act.name);
+      paneAssignments[assignKey] = pid;
+    }
+    if (_paneIndicators[pid]) _paneIndicators[pid].push(act.name);
   }
 
   for (var name in inds) {
     var ind = inds[name];
     if (ind.error || !ind.values) continue;
 
-    var active = null;
-    for (var a = 0; a < activeIndicators.length; a++) {
-      if (name.indexOf(activeIndicators[a].name) === 0) { active = activeIndicators[a]; break; }
+    var resolvedPane = ind.pane || 0;
+    if (resolvedPane > 0) {
+      for (var a = 0; a < activeIndicators.length; a++) {
+        if (name.indexOf(activeIndicators[a].name) === 0) {
+          var act = activeIndicators[a];
+          var mode = act.paneMode || "shared";
+          resolvedPane = mode === "main" ? 0 : paneAssignments[mode === "dedicated" ? act.name : mode];
+          break;
+        }
+      }
     }
 
-    var pane = ind.pane || 0;
-    var color = (active && active.params.color) || ind.color || "#26a69a";
-    var width = (active && active.params.width) || 2;
-    var label = ind.label || name.toUpperCase();
+    var activeMatch = null;
+    for (var a = 0; a < activeIndicators.length; a++) {
+      if (name.indexOf(activeIndicators[a].name) === 0) { activeMatch = activeIndicators[a]; break; }
+    }
+
+    // Per-line settings lookup
+    var lineColor = ind.color || "#26a69a";
+    var lineWidth = 2;
+    var lineVisible = true;
+    var activeName = activeMatch ? activeMatch.name : "";
+    if (activeMatch && activeMatch.params.lines && activeMatch.params.lines[name]) {
+      var ls = activeMatch.params.lines[name];
+      lineColor = ls.color || lineColor;
+      lineWidth = ls.width || lineWidth;
+      lineVisible = ls.visible !== false;
+    }
+    if (!lineVisible) continue;
 
     var candles = data.candles || [];
     var points = [];
+    var shift = ind.shift || 0;
+    var barMs = candles.length > 1 ? candles[candles.length - 1].t - candles[candles.length - 2].t : 60000;
+
     for (var i = 0; i < ind.values.length; i++) {
-      if (i >= candles.length) break;
       if (ind.values[i] === null || ind.values[i] === undefined) continue;
-      points.push({
-        time: Math.floor(candles[i].t / 1000),
-        value: ind.values[i],
-      });
+      var idx = i + shift;
+      var time;
+      if (shift === 0) {
+        if (i >= candles.length) break;
+        time = Math.floor(candles[i].t / 1000);
+      } else if (idx >= 0 && idx < candles.length) {
+        time = Math.floor(candles[idx].t / 1000);
+      } else if (idx >= candles.length) {
+        var barsPast = idx - (candles.length - 1);
+        time = Math.floor((candles[candles.length - 1].t + barsPast * barMs) / 1000);
+      } else {
+        // idx < 0: project backward (e.g. Chikou lagging span)
+        time = Math.floor((candles[0].t + idx * barMs) / 1000);
+      }
+      points.push({ time: time, value: ind.values[i] });
     }
     if (points.length === 0) continue;
 
     var series;
-    if (pane === 0) {
-      // Overlay on main chart
-      if (ind.style === "histogram") {
-        series = chart.addHistogramSeries({
-          color: color,
-          priceFormat: { type: "volume" },
-          priceScaleId: "price",
-        });
-      } else {
-        series = chart.addLineSeries({
-          color: color,
-          lineWidth: width,
-          priceScaleId: "price",
-        });
-      }
+    var scaleOpts = resolvedPane === 0 ? { priceScaleId: 'price' } : {};
+    if (ind.style === "histogram") {
+      series = chart.addSeries(LightweightCharts.HistogramSeries, Object.assign({ color: lineColor, priceFormat: { type: "volume" } }, scaleOpts), resolvedPane);
     } else {
-      // Separate pane for oscillators
-      var paneScaleId = _indicatorPane.priceScale().id();
-      if (ind.style === "histogram") {
-        series = chart.addHistogramSeries({
-          color: color,
-          priceFormat: { type: "volume" },
-          priceScaleId: paneScaleId,
-        });
-      } else {
-        series = chart.addLineSeries({
-          color: color,
-          lineWidth: width,
-          priceScaleId: paneScaleId,
-        });
-      }
+      series = chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color: lineColor, lineWidth: lineWidth }, scaleOpts), resolvedPane);
     }
-
     series.setData(points);
+    // Set pane height for newly created sub-panes
+    if (resolvedPane > 0 && _panes[resolvedPane] && !_panes[resolvedPane]._heightSet) {
+      try { chart.panes()[resolvedPane].setHeight(_panes[resolvedPane].height); } catch(_) {}
+      _panes[resolvedPane]._heightSet = true;
+    }
     if (!indicatorSeries[name]) indicatorSeries[name] = {};
-    indicatorSeries[name][pane] = series;
+    indicatorSeries[name][resolvedPane] = series;
+  }
+
+  for (var gname in groups) {
+    var g = groups[gname];
+    if (g.cloud) {
+      renderIchimokuCloud(data.candles || [], g.cloud.top, g.cloud.bottom, inds);
+    }
+  }
+
+  // Render zone lines for momentum oscillators
+  for (var a = 0; a < activeIndicators.length; a++) {
+    var act = activeIndicators[a];
+    if (!act.params.zones) continue;
+    var zonePid = act.paneMode === "main" ? 0 : (paneAssignments[act.paneMode === "dedicated" ? act.name : act.paneMode] || 0);
+    var firstSeriesInPane = null;
+    for (var sn in indicatorSeries) {
+      if (indicatorSeries[sn][zonePid]) { firstSeriesInPane = indicatorSeries[sn][zonePid]; break; }
+    }
+    if (!firstSeriesInPane) continue;
+    for (var zk in act.params.zones) {
+      var z = act.params.zones[zk];
+      if (z.visible === false) continue;
+      // Remove old price line if it exists
+      var plKey = "_pline_" + act.name + "_" + zk;
+      if (firstSeriesInPane[plKey]) {
+        try { firstSeriesInPane.removePriceLine(firstSeriesInPane[plKey]); } catch(_) {}
+      }
+      var pl = firstSeriesInPane.createPriceLine({
+        price: z.value,
+        color: z.color || "#888",
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: z.label,
+      });
+      firstSeriesInPane[plKey] = pl;
+    }
+  }
+
+  for (var pid in _panes) {
+    var p = _panes[pid];
+    var indsInPane = _paneIndicators[pid] || [];
+    var label = indsInPane.map(function(n) {
+      for (var a = 0; a < activeIndicators.length; a++) {
+        if (activeIndicators[a].name === n) return activeIndicators[a].label;
+      }
+      return n;
+    }).join(", ") || "Pane " + pid;
+
+    var header = document.createElement("div");
+    header.id = "paneHeader_" + pid;
+    header.className = "pane-header";
+    header.style.cssText = "display:flex;align-items:center;background:#16213e;padding:2px 8px;font-size:11px;color:#888;border-bottom:1px solid #0f3460;cursor:default;";
+    header.innerHTML = '<span style="flex:1">' + label + '</span><span style="color:#555;font-size:10px;cursor:pointer" onclick="removePaneIndicators(' + pid + ')">×</span>';
+
+    var wrapper = document.getElementById("chart-wrapper");
+    wrapper.appendChild(header);
+    var handle = document.createElement("div");
+    handle.id = "paneHandle_" + pid;
+    handle.className = "pane-resize-handle";
+    handle.style.cssText = "height:4px;cursor:ns-resize;background:#0f3460;";
+    wrapper.appendChild(handle);
+  }
+}
+
+function removePaneIndicators(pid) {
+  var paneNames = _paneIndicators[pid] || [];
+  for (var i = activeIndicators.length - 1; i >= 0; i--) {
+    if (paneNames.indexOf(activeIndicators[i].name) >= 0) {
+      removeIndicator(i);
+    }
   }
 }
 
 function stopLive() {
+  if (window._liveRetryTimer) { clearTimeout(window._liveRetryTimer); window._liveRetryTimer = null; }
   if (eventSource) { eventSource.close(); eventSource = null; }
 }
 
@@ -670,7 +1276,7 @@ function startLive() {
   };
   eventSource.onerror = () => {
     // SSE connection lost — fall back to polling after 30s
-    setTimeout(() => { if (!eventSource) startLive(); }, 30000);
+    window._liveRetryTimer = setTimeout(() => { if (!eventSource) startLive(); }, 30000);
   };
 }
 
@@ -681,8 +1287,8 @@ const TF_SEC = {
 
 function initChart() {
   chart = LightweightCharts.createChart(document.getElementById('chart'), {
-    layout: { textColor: '#888', background: { color: '#1a1a2e' } },
-    grid: { vertLines: { color: '#16213e' }, horzLines: { color: '#16213e' } },
+    layout: { textColor: '#555', background: { color: '#f5f5f5' } },
+    grid: { vertLines: { color: '#e0e0e0' }, horzLines: { color: '#e0e0e0' } },
     timeScale: {
       timeVisible: true,
       borderColor: '#0f3460',
@@ -714,19 +1320,74 @@ function initChart() {
       },
     },
   });
-  candleSeries = chart.addCandlestickSeries({
+  candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
     upColor: '#26a69a', downColor: '#ef5350',
     borderUpColor: '#26a69a', borderDownColor: '#ef5350',
     wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     priceScaleId: 'price',
-  });
-  volumeSeries = chart.addHistogramSeries({
+  }, 0);
+  volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
     priceFormat: { type: 'volume' },
     priceScaleId: 'volume',
-  });
+  }, 0);
   chart.priceScale('volume').applyOptions({
     scaleMargins: { top: 0.8, bottom: 0 },
   });
+
+  // Apply saved chart settings
+  var cs = loadChartSettings();
+  candleSeries.applyOptions({
+    upColor: cs.bullBody, downColor: cs.bearBody,
+    borderUpColor: cs.bullBody, borderDownColor: cs.bearBody,
+    wickUpColor: cs.bullWick, wickDownColor: cs.bearWick,
+  });
+  chart.applyOptions({ layout: { background: { color: cs.chartBg } } });
+
+  // Crosshair legend: show indicator values on hover
+  var legendEl = document.getElementById('crosshairLegend');
+  // Unsubscribe previous legend handler to prevent pile-up
+  if (window._legendHandler) {
+    chart.unsubscribeCrosshairMove(window._legendHandler);
+    window._legendHandler = null;
+  }
+  window._legendHandler = function(param) {
+    if (!param.point || !param.time) {
+      legendEl.style.display = 'none';
+      return;
+    }
+    if (!window.loadedIndicators) {
+      legendEl.style.display = 'none';
+      return;
+    }
+    var lines = [];
+    // Candle price
+    if (param.seriesData && param.seriesData.has(candleSeries)) {
+      var cd = param.seriesData.get(candleSeries);
+      if (cd && typeof cd.value !== 'undefined') {
+        lines.push('O: ' + cd.open.toFixed(2) + ' H: ' + cd.high.toFixed(2) + ' L: ' + cd.low.toFixed(2) + ' C: ' + cd.close.toFixed(2));
+      }
+    }
+    // Indicator series values
+    for (var name in indicatorSeries) {
+      for (var pid in indicatorSeries[name]) {
+        var s = indicatorSeries[name][pid];
+        if (param.seriesData && param.seriesData.has(s)) {
+          var d = param.seriesData.get(s);
+          if (d && typeof d.value !== 'undefined') {
+            var label = name.replace(/^ichimoku_/, '');
+            lines.push(label + ': ' + d.value.toFixed(2));
+          }
+        }
+      }
+    }
+    if (lines.length > 0) {
+      legendEl.innerHTML = lines.join('<br>');
+      legendEl.style.display = 'block';
+    } else {
+      legendEl.style.display = 'none';
+    }
+  };
+  chart.subscribeCrosshairMove(window._legendHandler);
 }
 
 function autoScale() {
@@ -801,6 +1462,7 @@ async function loadChart() {
   statusEl.textContent = `${data.count} candles  |  ${from} → ${to}`;
   toggleRegression();
   startLive();
+  if (activeIndicators.length > 0) computeAndRenderIndicators();
 }
 
 async function ensureDataLoaded() {
@@ -2853,7 +3515,10 @@ startDateEl.addEventListener('change', () => { const t = document.querySelector(
 endDateEl.addEventListener('change', () => { const t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
 
 initChart();
-loadPairs().then(() => loadAllData());
+activeIndicators.push({ name: "ichimoku", label: "Ichimoku Cloud", params: { tenkan: 9, kijun: 26, senkou: 52, color: "#26a69a" }, paneMode: "main" });
+activeIndicators.push({ name: "rsi", label: "RSI(14)", params: { period: 14, color: "#ab47bc" }, paneMode: "shared" });
+renderIndChips();
+loadPairs().then(function() { loadAllData(); });
 </script>
 </body>
 </html>"""

@@ -82,11 +82,183 @@ def node_check_js(html_path):
 
 # ───────────────────── smoke mode ─────────────────────
 
+def _check_page_js(path, name, errors):
+    import urllib.request, tempfile
+    try:
+        html = urllib.request.urlopen(f"http://localhost:{PORT}{path}", timeout=10).read().decode()
+        tmp = tempfile.mktemp(suffix='.html')
+        with open(tmp, 'w') as f:
+            f.write(html)
+        ok, msg = node_check_js(tmp)
+        if ok:
+            print(f"  ✅ {name} JS syntax: {msg}")
+        else:
+            errors.append(f"{name} JS: {msg}")
+            print(f"  ❌ {name} JS: {msg}")
+        return html
+    except Exception as e:
+        errors.append(f"{name} fetch: {e}")
+        print(f"  ❌ {name} fetch: {e}")
+        return None
+
+
+def _check_dashboard_html(html, errors):
+    """Check dashboard-specific HTML elements and API endpoints."""
+    checks = {
+        "chart container": 'id="chart"',
+        "chart wrapper": 'id="chart-wrapper"',
+        "controls bar": 'class="controls-bar"',
+        "gear button": 'class="gear-btn"',
+        "settings modal": 'id="settingsModal"',
+        "settings overlay": 'id="settingsOverlay"',
+        "crosshair legend": 'id="crosshairLegend"',
+        "exchange select": 'id="exchange"',
+        "symbol select": 'id="symbol"',
+        "timeframe select": 'id="timeframe"',
+        "regression toggle": 'onchange="toggleRegression()"',
+        "LightweightCharts CDN": 'lightweight-charts',
+    }
+    for name, needle in checks.items():
+        if needle in html:
+            print(f"  ✅ Dashboard HTML: {name}")
+        else:
+            errors.append(f"Dashboard HTML: missing {name}")
+            print(f"  ❌ Dashboard HTML: missing {name}")
+
+    # Key JS globals — check they appear in script blocks
+    js_globals = [
+        "chart = LightweightCharts.createChart",
+        "candleSeries = chart.addSeries",
+        "volumeSeries = chart.addSeries",
+        "indicatorSeries = {}",
+        "function initChart",
+        "function renderIndicatorSeries",
+        "function loadPairs",
+        "function toggleRegression",
+        "function loadChartSettings",
+        "function toggleSettings",
+        "function closeSettings",
+        "function applyChartSettings",
+        "function resetChartSettings",
+        "subscribeCrosshairMove",
+        "CHART_SETTINGS_KEY",
+    ]
+    for g in js_globals:
+        if g in html:
+            print(f"  ✅ Dashboard JS: {g.split('(')[0]}")
+        else:
+            errors.append(f"Dashboard JS: missing {g.split('(')[0]}")
+            print(f"  ❌ Dashboard JS: missing {g.split('(')[0]}")
+
+    # Critical API endpoints
+    api_checks = [
+        ("/api/pairs", "/api/pairs"),
+        ("/api/candles/count", "/api/candles/count"),
+    ]
+    for name, path in api_checks:
+        if http_ok(path):
+            print(f"  ✅ Dashboard API: {name} HTTP 200")
+        else:
+            errors.append(f"Dashboard API: {name} failed")
+            print(f"  ❌ Dashboard API: {name} failed")
+
+
+def _check_dashboard_candles(errors):
+    """Try fetching a candle snapshot to verify the data pipeline."""
+    import urllib.request, json
+    try:
+        # Fetch pairs to get a valid exchange/symbol
+        r = urllib.request.urlopen(f"http://localhost:{PORT}/api/pairs", timeout=10)
+        data = json.loads(r.read())
+        pairs = data.get("pairs", [])
+        if not pairs:
+            print("  ⚠️  Dashboard candles: no pairs to test")
+            return
+        ex = pairs[0]["exchange"]
+        sym = pairs[0]["symbol"]
+        url = f"http://localhost:{PORT}/api/candles?exchange={ex}&symbol={sym}&timeframe=1h&limit=5"
+        r2 = urllib.request.urlopen(url, timeout=15)
+        cdata = json.loads(r2.read())
+        candles = cdata.get("candles", [])
+        if len(candles) > 0:
+            print(f"  ✅ Dashboard candles: {len(candles)} candles from {ex}/{sym}")
+        else:
+            # Candles can be legitimately empty (no data fetched yet) — warn, don't fail
+            print(f"  ⚠️  Dashboard candles: empty from {ex}/{sym} (may need data fetch)")
+    except Exception as e:
+        errors.append(f"Dashboard candles: {e}")
+        print(f"  ❌ Dashboard candles: {e}")
+
+
+def _check_convert_html(html, errors):
+    """Check convert page HTML elements and API endpoint."""
+    checks = {
+        "direction selector": 'id="direction"',
+        "input code area": 'id="inputCode"',
+        "output code area": 'id="outputCode"',
+        "convert button": 'id="convertBtn"',
+        "exchange select": 'id="exchange"',
+        "symbol select": 'id="symbol"',
+        "timeframe select": 'id="timeframe"',
+        "input header": 'id="inputHeader"',
+        "output header": 'id="outputHeader"',
+        "loading indicator": 'id="loading"',
+        "error message": 'id="errorMsg"',
+    }
+    for name, needle in checks.items():
+        if needle in html:
+            print(f"  ✅ Convert HTML: {name}")
+        else:
+            errors.append(f"Convert HTML: missing {name}")
+            print(f"  ❌ Convert HTML: missing {name}")
+
+    js_globals = [
+        "function doConvert",
+        "function copyOutput",
+        "function showError",
+        "directionLabels",
+        "/api/convert",
+    ]
+    for g in js_globals:
+        if g in html:
+            print(f"  ✅ Convert JS: {g.split('(')[0]}")
+        else:
+            errors.append(f"Convert JS: missing {g.split('(')[0]}")
+            print(f"  ❌ Convert JS: missing {g.split('(')[0]}")
+
+    # Test POST /api/convert with invalid data — should return 400 or 502 (not 404)
+    import urllib.request, json
+    try:
+        req = urllib.request.Request(
+            f"http://localhost:{PORT}/api/convert",
+            data=json.dumps({"direction":"nl_python","code":"test"}).encode(),
+            headers={"Content-Type":"application/json"},
+            method="POST",
+        )
+        resp = urllib.request.urlopen(req, timeout=15)
+        if resp.status == 200:
+            print("  ✅ Convert API: /api/convert HTTP 200")
+        else:
+            errors.append(f"Convert API: {resp.status}")
+            print(f"  ❌ Convert API: {resp.status}")
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 422, 502):
+            print(f"  ✅ Convert API: /api/convert HTTP {e.code} (expected—no API key or invalid input)")
+        else:
+            errors.append(f"Convert API: HTTP {e.code}")
+            print(f"  ❌ Convert API: HTTP {e.code}")
+    except Exception as e:
+        errors.append(f"Convert API: {e}")
+        print(f"  ❌ Convert API: {e}")
+
+
 def smoke_test():
     errors = []
     pages = [
         ("/strategy-lab", "Strategy Lab"),
         ("/api/health", "Health"),
+        ("/dashboard", "Dashboard"),
+        ("/convert", "Convert"),
     ]
     for path, name in pages:
         if http_ok(path):
@@ -96,34 +268,43 @@ def smoke_test():
             print(f"  ❌ {name} ({path}) failed")
 
     import urllib.request, tempfile
-    for path, name in [("/strategy-lab", "strategy_lab")]:
-        try:
-            html = urllib.request.urlopen(f"http://localhost:{PORT}{path}", timeout=10).read().decode()
-            tmp = tempfile.mktemp(suffix='.html')
-            with open(tmp, 'w') as f:
-                f.write(html)
-            ok, msg = node_check_js(tmp)
-            if ok:
-                print(f"  ✅ {name} JS syntax: {msg}")
-            else:
-                errors.append(f"{name} JS: {msg}")
-                print(f"  ❌ {name} JS: {msg}")
-        except Exception as e:
-            errors.append(f"{name} fetch: {e}")
-            print(f"  ❌ {name} fetch: {e}")
+    for path, name in [("/strategy-lab", "strategy_lab"), ("/dashboard", "dashboard"), ("/convert", "convert")]:
+        html = _check_page_js(path, name, errors)
+        if html:
+            if path == "/dashboard":
+                _check_dashboard_html(html, errors)
+            elif path == "/convert":
+                _check_convert_html(html, errors)
 
+    if errors:
+        # Don't bother testing candles if basic checks failed
+        return errors
+
+    _check_dashboard_candles(errors)
     return errors
 
 
 # ───────────────────── strategy mode ─────────────────────
 
 def restart_servers(port=8001):
-    """Kill screen sessions, clean IPC, start all, wait for health."""
+    """Kill zombie processes, clean IPC, start server, wait for health."""
     print("  🔄 Restarting servers...")
-    for s in ["agent", "vibe-agent", "candle"]:
-        subprocess.run(["screen", "-S", s, "-X", "quit"], capture_output=True)
+
+    # Force-kill anything on the port (handles root-owned, zombie, etc.)
+    SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+    server_script = os.path.join(SCRIPTS_DIR, "server.sh")
+    if os.path.exists(server_script):
+        subprocess.run(["bash", server_script, "kill", str(port)], capture_output=True, timeout=10)
+    else:
+        # Fallback: direct kill
+        subprocess.run(["fuser", "-k", f"{port}/tcp"], capture_output=True, timeout=5)
+        subprocess.run(["fuser", "-k", f"{port}/tcp"], capture_output=True, timeout=5)
+        time.sleep(1)
+        for s in ["agent", "vibe-agent", "candle"]:
+            subprocess.run(["screen", "-S", s, "-X", "quit"], capture_output=True, timeout=5)
+
     time.sleep(1)
-    subprocess.run("rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json", shell=True)
+    subprocess.run("rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json", shell=True, timeout=5)
 
     base = "/home/anymous/PROJETS/candle-analytics"
     subprocess.run(["screen", "-dmS", "agent", "bash", "-c",
@@ -132,6 +313,14 @@ def restart_servers(port=8001):
     subprocess.run(["screen", "-dmS", "vibe-agent", "bash", "-c",
                     f"cd {base} && .venv/bin/python api/vibe_agent.py"], timeout=10)
     time.sleep(1)
+    # Use server.sh for reliable start, or fallback to direct uvicorn
+    if os.path.exists(server_script):
+        r = subprocess.run(["bash", server_script, "start", str(port)], capture_output=True, text=True, timeout=30)
+        if r.returncode == 0:
+            print(f"  ✅ Servers healthy via server.sh")
+            return True
+        print(f"  ⚠️  server.sh start failed (rc={r.returncode}): {r.stderr[:200]}")
+        # fall through to direct start
     subprocess.run(["screen", "-dmS", "candle", "bash", "-c",
                     f"cd {base} && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port {port}"], timeout=10)
 
@@ -277,6 +466,15 @@ def main():
     PORT = args.port
 
     all_errors = []
+
+    # Pre-check: verify port is reachable or force-clear it
+    import subprocess
+    fuser_r = subprocess.run(["fuser", f"{PORT}/tcp"], capture_output=True, timeout=5)
+    if fuser_r.returncode == 0:
+        pid = fuser_r.stdout.decode().strip()
+        owner_r = subprocess.run(["ps", "-o", "user=", "-p", pid], capture_output=True, text=True, timeout=5)
+        owner = owner_r.stdout.strip() if owner_r.returncode == 0 else "unknown"
+        print(f"  ⚠️  Port {PORT} is occupied by PID {pid} ({owner}) — will force-kill")
 
     # Restart servers once for all modes
     if not restart_servers(PORT):

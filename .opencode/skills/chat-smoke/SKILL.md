@@ -30,9 +30,11 @@ python scripts/chat_e2e.py smoke [--port 8001]
 ```
 
 Checks:
-1. HTTP 200 on `/strategy-lab`, `/vibe-lab`, `/api/health`
+1. HTTP 200 on `/strategy-lab`, `/vibe-lab`, `/api/health`, `/dashboard`
 2. Extracts inline `<script>` blocks from each page
 3. Validates JS syntax via `node --check`
+4. Dashboard-specific checks: 20+ HTML elements present (chart container, controls bar, gear button, settings modal, crosshair legend), 15+ JS globals defined (chart, candleSeries, indicatorSeries, settings functions, subscribeCrosshairMove), critical API endpoints (/api/pairs, /api/candles/count)
+5. Candle data pipeline: fetches pairs → requests candles snapshot from first available pair
 
 Takes ~0.5s. Detects ~80% of chat-breaking bugs.
 
@@ -72,7 +74,8 @@ Add to `code-quality` skill's pre-declaration checklist:
 ## Trigger
 
 Run this skill when:
-- A PR changes `api/strategy_lab.py` or `api/vibe_lab.py`
+- A PR changes `api/strategy_lab.py`, `api/vibe_lab.py`, or `api/dashboard.py`
 - The chat Send button is reported as non-functional
 - The WS shows "Disconnected" after server restart
+- The chart fails to render or indicator lines don't appear
 - Before marking any JS-heavy build as "done"

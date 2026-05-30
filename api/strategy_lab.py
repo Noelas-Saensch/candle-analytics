@@ -161,22 +161,10 @@ h3 { font-size: 12px; color: #888; margin: 10px 0 6px; }
 .field-tiny { width: 65px; padding-right: 20px !important; }
 
 /* Engine Search Group */
-.engine-group { background: #0d1b2a; border: 1px solid #1a3a6b; border-radius: 4px; margin-bottom: 10px; }
-.engine-group-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: #e0e0e0; user-select: none; }
-.engine-group-header:hover { background: #16213e; }
-.engine-toggle { font-size: 10px; color: #555; transition: transform 0.2s; }
-.engine-group-body { padding: 8px 10px; border-top: 1px solid #1a3a6b; }
-.engine-group-body.closed { display: none; }
-.engine-row { display: flex; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
-.engine-row:last-child { margin-bottom: 0; }
-.engine-field { display: flex; flex-direction: column; gap: 2px; min-width: 120px; flex: 1; }
-.engine-field label { font-size: 10px; color: #888; white-space: nowrap; }
-.ef-row { display: inline-flex; align-items: center; gap: 2px; }
-.engine-field input[type=number],
-.engine-field input[type=date] { background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6b; padding: 3px 6px; border-radius: 3px; font-size: 11px; max-width: 120px; }
-.engine-field input[type=checkbox] { margin-right: 4px; vertical-align: middle; }
-.ai-suggest-btn { vertical-align: middle; }
-.engine-note { font-size: 10px; color: #555; padding: 4px 8px; background: #16213e; border-radius: 3px; margin-top: 4px; }
+/* Result tab params bar */
+.tab-params { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.tab-params .engine-field { min-width: 80px; }
+.tab-params-right { margin-left: auto; display: flex; gap: 12px; align-items: flex-end; }
 
 .trade-area { margin: 6px 0; display: flex; gap: 12px; }
 .direction-column { flex: 1; min-width: 0; }
@@ -228,6 +216,7 @@ h3 { font-size: 12px; color: #888; margin: 10px 0 6px; }
 .order-row input[type=number] { width: 55px; padding-right: 18px; }
 .order-row .order-del { cursor: pointer; color: #ef5350; font-size: 12px; padding: 0 2px; opacity: .6; }
 .order-row .order-del:hover { opacity: 1; }
+.order-row .exec-toggle { width: 52px; font-size: 9px; background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6b; border-radius: 2px; padding: 1px 2px; }
 .order-title { font-size: 9px; color: #555; font-weight: 600; margin: 4px 0 2px; }
 
 input[type=number]::-webkit-inner-spin-button,
@@ -304,18 +293,7 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
 .btn-browse { background: none; border: 1px solid #1a3a6b; color: #888; padding: 1px 5px; border-radius: 3px; font-size: 11px; cursor: pointer; line-height: 1.4; }
 .btn-browse:hover { border-color: #e94560; color: #e0e0e0; }
 
-/* AI Suggest button + popover */
-.ai-suggest-btn { background: none; border: none; color: #888; font-size: 14px; cursor: pointer; padding: 0 4px; opacity: 0.5; line-height: 1; vertical-align: middle; }
-.ai-suggest-btn:hover { opacity: 1; color: #f9a825; }
-.ai-suggest-popover { position: absolute; z-index: 5000; background: #0d1b2a; border: 1px solid #1a3a6b; border-radius: 6px; padding: 6px 0; min-width: 180px; max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); display: none; }
-.ai-suggest-popover.show { display: block; }
-.ai-suggest-item { padding: 5px 12px; font-size: 11px; cursor: pointer; color: #c8d6e5; border-bottom: 1px solid #0f3460; }
-.ai-suggest-item:last-child { border-bottom: none; }
-.ai-suggest-item:hover { background: #1a3a6b; color: #e0e0e0; }
-.ai-suggest-item .asi-label { color: #26a69a; font-weight: 500; }
-.ai-suggest-item .asi-hint { color: #555; font-size: 9px; display: block; }
-
-/* ── Condition Browser Modal ── */
+/* Condition Browser Modal */
 .modal-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); }
 .modal-overlay.show { display: block; }
 .modal-content { position: relative; margin: 5% auto; width: 800px; max-width: 90%; max-height: 80vh; background: #16213e; border: 1px solid #0f3460; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
@@ -401,16 +379,14 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
 <div id="paramsSection" class="section">
   <div id="stratHeader" class="strat-header">
     <input type="text" id="cfgName" placeholder="[NOM_PERSONNALISABLE]" class="strat-name-input">
-    <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgName')" title="AI suggest">✨</button>
-    <select id="cfgExchange" class="field-sm"></select>
-    <select id="cfgSymbol" class="field-sm"></select>
+    <select id="cfgExchange" class="field-sm" onchange="onExchangeChange()"></select>
+    <select id="cfgSymbol" class="field-sm" onchange="autoSetDateRange()"></select>
     <select id="cfgTimeframe" class="field-sm">
       <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option><option value="30m">30m</option>
       <option value="1H" selected>1H</option><option value="2H">2H</option><option value="4H">4H</option><option value="6H">6H</option><option value="12H">12H</option>
       <option value="1D">1D</option><option value="1W">1W</option><option value="1M">1M</option>
     </select>
-    <input type="number" id="cfgLeverage" value="1" step="0.5" min="0.1" class="field-tiny" placeholder="Lev">
-    <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgLeverage')" title="AI suggest">✨</button>
+    <input type="text" id="cfgLeverage" value="X1" step="0.5" min="0.1" class="field-tiny" placeholder="Lev" onblur="formatLeverage(this)" oninput="formatLeverage(this)">
     <select id="cfgDirection" class="field-sm" onchange="onDirectionChange()">
       <option value="long_only">Long Only</option>
       <option value="short_only">Short Only</option>
@@ -434,81 +410,41 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
     <button class="btn btn-primary" onclick="runSearch()">&#9654; Run Search</button>
     <button class="btn" onclick="saveStrategy()">&#128190; Save</button>
     <button class="btn" onclick="exportConfigJSON()">&#128196; Export JSON</button>
-    <button class="btn" onclick="loadStrategy()">&#128218; Load</button>
+    <button class="btn" onclick="document.getElementById('importFileInput').click()">&#128194; Import JSON</button>
+    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importConfigJSON(event)">
     <button class="btn" onclick="clearConfig()">Clear</button>
+    <label style="margin-left:12px;font-size:11px;display:inline-flex;align-items:center;gap:4px;cursor:pointer" title="Simulate entries/exits on 1m candles for realistic backtest">
+      <input type="checkbox" id="cfgSubBar" onchange="onSubBarToggle()"> ⚡ Intra-bar
+    </label>
+    <select id="cfgSubBarRes" class="field-sm" style="width:50px;display:none;font-size:10px">
+      <option value="1m">1m</option>
+    </select>
   </div>
 </div>
 
-<!-- ── ENGINE SEARCH ── -->
-<div id="paramsEngineSection" class="section">
-  <div id="engineGroup" class="engine-group">
-    <div class="engine-group-header" onclick="toggleEngineGroup()">
-      <span>⚙️ Engine Search</span>
-      <span class="engine-toggle" id="engineToggle">▼</span>
-    </div>
-    <div id="engineGroupBody" class="engine-group-body">
-      <div class="engine-row">
-        <div class="engine-field">
-          <label title="Number of candles to look ahead for forward return calculation">LA (Lookahead)</label>
-          <span class="ef-row"><input type="number" id="cfgLookahead" value="5" step="1" min="1" max="100">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgLookahead')" title="AI suggest">✨</button></span>
-        </div>
-        <div class="engine-field">
-          <label title="Minimum number of pattern occurrences required for a valid result">Min Occurrences</label>
-          <span class="ef-row"><input type="number" id="cfgMinOcc" value="10" step="1" min="1" max="9999">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgMinOcc')" title="AI suggest">✨</button></span>
-        </div>
-        <div class="engine-field">
-          <label title="Number of Monte Carlo shuffles (0 = disabled). Randomizes forward returns to test robustness">MC Shuffles</label>
-          <span class="ef-row"><input type="number" id="cfgMCShuffles" value="500" step="100" min="0" max="10000">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgMCShuffles')" title="AI suggest">✨</button></span>
-        </div>
-      </div>
-      <div class="engine-row">
-        <div class="engine-field">
-          <label title="Enable Walk-Forward analysis to test strategy robustness across time periods">
-            <input type="checkbox" id="cfgWF" checked onchange="onWFChange()"> Walk-Forward
-          </label>
-        </div>
-        <div class="engine-field">
-          <label title="Number of walk-forward windows">WF Windows</label>
-          <span class="ef-row"><input type="number" id="cfgWFWindows" value="5" step="1" min="2" max="20">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgWFWindows')" title="AI suggest">✨</button></span>
-        </div>
-        <div class="engine-field">
-          <label title="Percentage of each window used for training (rest = out-of-sample testing)">Train %</label>
-          <span class="ef-row"><input type="number" id="cfgWFTrainPct" value="70" step="5" min="10" max="95">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgWFTrainPct')" title="AI suggest">✨</button></span>
-        </div>
-      </div>
-      <div class="engine-row">
-        <div class="engine-field">
-          <label title="Start date for backtest data range (leave empty for earliest available)">Train Start</label>
-          <span class="ef-row"><input type="date" id="cfgStartDate">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgStartDate')" title="AI suggest">✨</button></span>
-        </div>
-        <div class="engine-field">
-          <label title="End date for backtest data range (leave empty for latest available)">Backtest End</label>
-          <span class="ef-row"><input type="date" id="cfgEndDate">
-          <button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,'cfgEndDate')" title="AI suggest">✨</button></span>
-        </div>
-        <div class="engine-field">
-          <label title="Enable automatic sweep across param values">
-            <input type="checkbox" id="cfgSweep"> Sweep enabled
-          </label>
-        </div>
-      </div>
-      <div class="engine-note" title="Monte Carlo, Walk-Forward, and Sweep run automatically on every search">💡 Auto-mode enabled — MC, WF, and Sweep run automatically on every search</div>
-    </div>
-  </div>
-</div>
 
 <div class="section-divider"></div>
 
 <!-- ── PART 3: RESULTS ── -->
 <div class="section">
-  <h2>📊 Results</h2>
-  <div id="status">Configure a strategy via the chat, then run a search</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <h2 style="margin:0;white-space:nowrap">📊 Results</h2>
+    <div style="display:flex;gap:12px;align-items:flex-end;margin-left:auto" id="resultsParams">
+      <div class="engine-field">
+        <label title="Minimum number of pattern occurrences required for a valid result">Min Occurrences</label>
+        <span class="ef-row"><input type="number" id="cfgMinOcc" value="10" step="1" min="1" max="9999"></span>
+      </div>
+      <div class="engine-field">
+        <label title="Start date for backtest data range (leave empty for earliest available)">Train Start</label>
+        <span class="ef-row"><input type="date" id="cfgStartDate"></span>
+      </div>
+      <div class="engine-field">
+        <label title="End date for backtest data range (leave empty for latest available)">Backtest End</label>
+        <span class="ef-row"><input type="date" id="cfgEndDate"></span>
+      </div>
+    </div>
+  </div>
+  <div id="status" style="margin-bottom:4px">Configure a strategy via the chat, then run a search</div>
   <div class="result-tabs">
     <div class="rtab active" data-rtab="main" onclick="switchRtab('main')">Edge</div>
     <div class="rtab" data-rtab="sweep" onclick="switchRtab('sweep')">Sweep</div>
@@ -519,6 +455,7 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
 
   <div class="rtab-content active" id="rtab-main">
     <div id="resultsContent" class="hidden">
+      <div id="sideToggle" class="hidden" style="margin-bottom:8px"></div>
       <div class="stat-grid" id="statGrid"></div>
       <canvas id="histChart"></canvas>
       <div id="histLegend" style="font-size:10px;color:#555;margin-top:4px"></div>
@@ -533,14 +470,30 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
   </div>
 
   <div class="rtab-content" id="rtab-sweep">
-    <div id="sweepStatus">Run a Sweep to see results</div>
+    <div id="sweepStatus">Sweep runs automatically after each search</div>
+    <div class="tab-params" style="margin-top:6px">
+      <div class="engine-field">
+        <label title="Maximum candles to hold if no order triggers (0 = no forced exit)">LA (Lookahead timeout)</label>
+        <span class="ef-row"><input type="number" id="cfgLookahead" value="0" step="1" min="0" max="500"></span>
+      </div>
+    </div>
     <div id="sweepContent" class="hidden">
       <div class="edge-wrap"><table class="edge-table" id="sweepTable"><thead></thead><tbody></tbody></table></div>
     </div>
   </div>
 
   <div class="rtab-content" id="rtab-wf">
-    <div id="wfStatus">Run a search with Walk-Forward enabled</div>
+    <div class="tab-params">
+      <div class="engine-field">
+        <label title="Number of walk-forward windows">WF Windows</label>
+        <span class="ef-row"><input type="number" id="cfgWFWindows" value="5" step="1" min="2" max="20"></span>
+      </div>
+      <div class="engine-field">
+        <label title="Percentage of each window used for training (rest = out-of-sample testing)">Train %</label>
+        <span class="ef-row"><input type="number" id="cfgWFTrainPct" value="70" step="5" min="10" max="95"></span>
+      </div>
+    </div>
+    <div id="wfStatus" style="margin-top:8px">Walk-Forward runs automatically after each search</div>
     <div id="wfContent" class="hidden">
       <div id="wfSummary" style="font-size:12px;margin-bottom:8px"></div>
       <div class="edge-wrap"><table class="wf-table" id="wfTable"><thead></thead><tbody></tbody></table></div>
@@ -548,7 +501,13 @@ input[type=number]:hover, input[type=number]:focus { -moz-appearance: number-inp
   </div>
 
   <div class="rtab-content" id="rtab-mc">
-    <div id="mcStatus">Run a search with Monte Carlo enabled</div>
+    <div class="tab-params">
+      <div class="engine-field">
+        <label title="Number of Monte Carlo shuffles (0 = disabled)">MC Shuffles</label>
+        <span class="ef-row"><input type="number" id="cfgMCShuffles" value="500" step="100" min="0" max="10000"></span>
+      </div>
+    </div>
+    <div id="mcStatus" style="margin-top:8px">Monte Carlo runs automatically after each search</div>
     <div id="mcContent" class="hidden">
       <div id="mcResult" style="font-size:12px"></div>
     </div>
@@ -965,7 +924,13 @@ function renderMarkdown(text) {
   return html;
 }
 
+var _chatHistory = [];
+var CHAT_MAX = 100;
+
 function addChatMessage(role, content, raw) {
+  _chatHistory.push({ role: role, content: content, raw: !!raw, time: Date.now() });
+  if (_chatHistory.length > CHAT_MAX) _chatHistory.splice(0, _chatHistory.length - CHAT_MAX);
+  saveChatState();
   var log = document.getElementById('chatLog');
   var time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   var formatted = raw ? content : renderMarkdown(content);
@@ -1062,6 +1027,7 @@ function renderConfig(cfg) {
       parseCondInput(inp);
     }
   }
+  autoSave();
 }
 
 function renderHeader(cfg) {
@@ -1073,7 +1039,7 @@ function renderHeader(cfg) {
   var mo = document.getElementById('cfgMinOcc');
   if (mo && cfg.min_occurrences != null) mo.value = cfg.min_occurrences;
   var lev = document.getElementById('cfgLeverage');
-  if (lev && cfg.leverage != null) lev.value = cfg.leverage;
+  if (lev && cfg.leverage != null) lev.value = 'X' + cfg.leverage;
   var dir = document.getElementById('cfgDirection');
   if (dir && cfg.direction) dir.value = cfg.direction;
 }
@@ -1081,8 +1047,6 @@ function renderHeader(cfg) {
 function renderEngineGroup(cfg) {
   var mc = document.getElementById('cfgMCShuffles');
   if (mc && cfg.mc_shuffles != null) mc.value = cfg.mc_shuffles;
-  var wf = document.getElementById('cfgWF');
-  if (wf && cfg.walk_forward != null) wf.checked = cfg.walk_forward;
   var wfw = document.getElementById('cfgWFWindows');
   if (wfw && cfg.walk_windows != null) wfw.value = cfg.walk_windows;
   var wft = document.getElementById('cfgWFTrainPct');
@@ -1091,7 +1055,9 @@ function renderEngineGroup(cfg) {
   if (sd && cfg.start_time) sd.value = new Date(cfg.start_time).toISOString().split('T')[0];
   var ed = document.getElementById('cfgEndDate');
   if (ed && cfg.end_time) ed.value = new Date(cfg.end_time).toISOString().split('T')[0];
-  onWFChange();
+  var sb = document.getElementById('cfgSubBar');
+  if (sb && cfg.sub_bar) sb.checked = cfg.sub_bar.enabled === true;
+  if (sb) onSubBarToggle();
 }
 
 function renderTrades(side, trades) {
@@ -1201,7 +1167,6 @@ function getCondRowHTML(side, tradeIdx, which, gIdx, cIdx, cond) {
     + '<span class="sc-btn' + (subcat === 'pctl' ? ' active' : '') + '" data-sc="pctl" onclick="switchSubcat(this)">Pctl</span>'
     + '</span>'
     + '<span class="cond-suggest"><input type="text" class="cond-input" value="' + textVal + '" placeholder="oc > 0.5 or pctl 80" onblur="parseCondInput(this); setTimeout(function(){ hideSuggest(this) }, 200)" oninput="searchConditions(this)" onfocus="searchConditions(this)"><div class="cond-suggest-dropdown"></div></span>'
-    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'cond\\')" title="AI suggest">✨</button>'
     + '<button type="button" class="btn btn-sm btn-browse" onclick="openConditionBrowser(this)" title="Browse indicators">&nbsp;📊</button>'
     + '<span class="cond-del" onclick="this.parentElement.remove()">&times;</span>'
     + '<span class="cond-badge" id="condBadge-' + side + '-' + tradeIdx + '-' + which + '-' + gIdx + '-' + cIdx + '">' + (textVal || 'not set') + '</span>'
@@ -1287,97 +1252,6 @@ function parseCondInput(input) {
 var _searchTimeout = null;
 
 // ── AI Suggest ──
-var _suggestPopover = null;
-
-function showAISuggest(btn, fieldName) {
-  // Close existing popover
-  if (_suggestPopover) { _suggestPopover.remove(); _suggestPopover = null; }
-
-  // Find the closest input (previous sibling or inside the parent)
-  var input = btn.previousElementSibling;
-  while (input && input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA' && input.tagName !== 'SELECT') {
-    input = input.previousElementSibling;
-  }
-  if (!input) input = btn.parentElement.querySelector('input, textarea, select');
-  if (!input) return;
-
-  var currentVal = input.value || '';
-
-  // Create popover
-  var popover = document.createElement('div');
-  popover.className = 'ai-suggest-popover show';
-  popover.innerHTML = '<div style="padding:6px 12px;font-size:10px;color:#555;border-bottom:1px solid #0f3460">AI suggestions for ' + fieldName + '</div><div class="asi-list" style="padding:0"><div style="padding:8px 12px;font-size:10px;color:#555">Loading...</div></div>';
-  btn.parentElement.appendChild(popover);
-
-  // Position below the button
-  var rect = btn.getBoundingClientRect();
-  popover.style.left = '0';
-  popover.style.top = (btn.offsetHeight + 2) + 'px';
-
-  _suggestPopover = popover;
-
-  // Close on click outside
-  setTimeout(function () {
-    document.addEventListener('click', _closeSuggestPopover);
-  }, 10);
-
-  // Fetch suggestions
-  fetch('/api/edge/suggest', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ field: fieldName, value: currentVal, config: getSearchConfig() || {} }),
-  })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      var list = popover.querySelector('.asi-list');
-      if (!data.suggestions || !data.suggestions.length) {
-        list.innerHTML = '<div style="padding:8px 12px;font-size:10px;color:#555">No suggestions available</div>';
-        return;
-      }
-      var html = '';
-      for (var si = 0; si < data.suggestions.length; si++) {
-        var sug = data.suggestions[si];
-        html += '<div class="ai-suggest-item" onclick="applySuggest(this,\\'' + fieldName + '\\')" data-value="' + sug.value.replace(/"/g, '&quot;') + '">'
-          + '<span class="asi-label">' + sug.label + '</span>'
-          + (sug.hint ? '<span class="asi-hint">' + sug.hint + '</span>' : '')
-          + '</div>';
-      }
-      list.innerHTML = html;
-    })
-    .catch(function () {
-      var list = popover.querySelector('.asi-list');
-      list.innerHTML = '<div style="padding:8px 12px;font-size:10px;color:#ef5350">Failed to load suggestions</div>';
-    });
-}
-
-function _closeSuggestPopover(e) {
-  if (_suggestPopover && !_suggestPopover.contains(e.target)) {
-    _suggestPopover.remove();
-    _suggestPopover = null;
-    document.removeEventListener('click', _closeSuggestPopover);
-  }
-}
-
-function applySuggest(el, fieldName) {
-  var popover = el.closest('.ai-suggest-popover');
-  var btn = popover.parentElement.querySelector('.ai-suggest-btn');
-  var input = btn ? (btn.previousElementSibling || btn.parentElement.querySelector('input, textarea, select')) : null;
-  if (!input) input = popover.parentElement.querySelector('input, textarea, select');
-  if (!input) { popover.remove(); _suggestPopover = null; return; }
-
-  var val = el.getAttribute('data-value') || el.textContent;
-  input.value = val;
-
-  // If this is a condition input, re-parse it
-  if (input.classList.contains('cond-input')) {
-    parseCondInput(input);
-  }
-
-  popover.remove();
-  _suggestPopover = null;
-  document.removeEventListener('click', _closeSuggestPopover);
-}
-
 function searchConditions(input) {
   if (_searchTimeout) clearTimeout(_searchTimeout);
   var dropdown = input.parentElement.querySelector('.cond-suggest-dropdown');
@@ -1479,17 +1353,21 @@ function getOrderRowHTML(side, tradeIdx, which, oIdx, order) {
   var sz = order.size || 1;
   var st = order.size_type || 'percent';
   var pr = order.price != null ? order.price : '';
+  var exec = order.execution || 'close';
+  var subOn = document.getElementById('cfgSubBar') && document.getElementById('cfgSubBar').checked;
   return '<div class="order-row" data-side="' + side + '" data-ti="' + tradeIdx + '" data-which="' + which + '" data-oi="' + oIdx + '">'
     + '<select onchange="updateOrder(this)">'
     + ordTypes.map(function(t){return '<option value="' + t + '"' + (t === ot ? ' selected' : '') + '>' + t.toUpperCase() + '</option>';}).join('')
     + '</select>'
     + '<input type="number" step="0.5" value="' + sz + '" min="0" onchange="updateOrder(this)" style="width:55px" placeholder="Size">'
-    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'order_size\\')" title="AI suggest">✨</button>'
     + '<select onchange="updateOrder(this)">'
     + szTypes.map(function(t){return '<option value="' + t + '"' + (t === st ? ' selected' : '') + '>' + t + '</option>';}).join('')
     + '</select>'
     + '<input type="number" step="0.5" value="' + pr + '" onchange="updateOrder(this)" style="width:60px" placeholder="Price">'
-    + '<button type="button" class="ai-suggest-btn" onclick="showAISuggest(this,\\'order_price\\')" title="AI suggest">✨</button>'
+    + '<select class="exec-toggle" onchange="updateOrder(this)" style="width:52px;font-size:9px;background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;border-radius:2px;' + (subOn ? '' : 'display:none') + '">'
+    + '<option value="close"' + (exec === 'close' ? ' selected' : '') + '>Close</option>'
+    + '<option value="intra"' + (exec === 'intra' ? ' selected' : '') + '>Intra</option>'
+    + '</select>'
     + '<span class="order-del" onclick="this.parentElement.remove()">&times;</span>'
     + '</div>';
 }
@@ -1651,6 +1529,7 @@ function addTrade(side) {
   card.innerHTML = getTradeCardHTML(side, idx, null);
   container.appendChild(card.firstElementChild);
   reindexTrades(side);
+  autoSave();
 }
 
 function removeTrade(side, idx) {
@@ -1659,6 +1538,7 @@ function removeTrade(side, idx) {
   var cards = container.querySelectorAll('.trade-card');
   if (cards[idx]) cards[idx].remove();
   reindexTrades(side);
+  autoSave();
 }
 
 function reindexTrades(side) {
@@ -1690,6 +1570,7 @@ function addCondGroup(side, tradeIdx, which) {
 function removeCondGroup(el) {
   var group = el.closest('.cond-group');
   if (group) group.remove();
+  autoSave();
 }
 
 function addConditionToGroup(side, tradeIdx, which, gIdx) {
@@ -1704,6 +1585,7 @@ function addConditionToGroup(side, tradeIdx, which, gIdx) {
   var row = document.createElement('div');
   row.innerHTML = getCondRowHTML(side, tradeIdx, which, gIdx, cIdx, {});
   group.insertBefore(row.firstElementChild, group.querySelector('button'));
+  autoSave();
 }
 
 function addOrder(side, tradeIdx, which) {
@@ -1736,20 +1618,6 @@ function getTradeCard(side, tradeIdx) {
 }
 
 // ── Direction column toggle ──
-// ── Engine Search Group toggle ──
-function toggleEngineGroup() {
-  var body = document.getElementById('engineGroupBody');
-  var toggle = document.getElementById('engineToggle');
-  if (!body || !toggle) return;
-  var closed = body.classList.toggle('closed');
-  toggle.textContent = closed ? '▶' : '▼';
-}
-
-function onWFChange() {
-  var wf = document.getElementById('cfgWF').checked;
-  document.getElementById('cfgWFWindows').disabled = !wf;
-  document.getElementById('cfgWFTrainPct').disabled = !wf;
-}
 
 function onDirectionChange() {
   var dir = document.getElementById('cfgDirection').value;
@@ -1772,6 +1640,11 @@ function setDirection(dir) {
     shortCol.classList.add('hidden');
     longCol.classList.add('full-width-col');
   }
+}
+
+function formatLeverage(el) {
+  var v = el.value.replace(/[^0-9.]/g, '');
+  el.value = 'X' + (v || '1');
 }
 
 // ── Show default config (with example template) ──
@@ -1821,6 +1694,7 @@ function loadPairsForConfig(exchange, symbol, timeframe) {
       data.pairs.forEach(function (p) { if (!seenEx[p.exchange]) { seenEx[p.exchange] = true; exchanges.push(p.exchange); } });
       exEl.innerHTML = exchanges.map(function (e) { return '<option value="' + e + '">' + e + '</option>'; }).join('');
       if (exchange) exEl.value = exchange;
+      sessionStorage.setItem('_allPairs', JSON.stringify(data.pairs));
 
       var symbols = [];
       var seenSym = {};
@@ -1838,8 +1712,68 @@ function loadPairsForConfig(exchange, symbol, timeframe) {
           if (p.exchange === exEl.value && !seenSym2[p.symbol]) { seenSym2[p.symbol] = true; syms.push(p.symbol); }
         });
         symEl.innerHTML = syms.map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+        autoSetDateRange();
       });
+      autoSetDateRange();
     });
+}
+
+// ── Auto-set date range ──
+function onExchangeChange() {
+  var exEl = document.getElementById('cfgExchange');
+  var symEl = document.getElementById('cfgSymbol');
+  var syms = [];
+  var seenSym = {};
+  var pairs = [];
+  try { pairs = JSON.parse(sessionStorage.getItem('_allPairs') || '[]'); } catch(e) {}
+  pairs.forEach(function (p) {
+    if (p.exchange === exEl.value && !seenSym[p.symbol]) { seenSym[p.symbol] = true; syms.push(p.symbol); }
+  });
+  symEl.innerHTML = syms.map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+  autoSetDateRange();
+}
+
+function autoSetDateRange() {
+  var ex = document.getElementById('cfgExchange');
+  var sym = document.getElementById('cfgSymbol');
+  var tf = document.getElementById('cfgTimeframe');
+  if (!ex || !sym || !tf || !ex.value || !sym.value || !tf.value) return;
+
+  fetch('/api/edge/auto-date', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ exchange: ex.value, symbol: sym.value, timeframe: tf.value }),
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    var startEl = document.getElementById('cfgStartDate');
+    var endEl = document.getElementById('cfgEndDate');
+    if (startEl && data.ideal_start) {
+      var d = new Date(data.ideal_start);
+      startEl.value = d.toISOString().slice(0, 10);
+    }
+    if (endEl && data.ideal_end) {
+      var d2 = new Date(data.ideal_end);
+      endEl.value = d2.toISOString().slice(0, 10);
+    }
+    if (data.messages && data.messages.length) {
+      var status = document.getElementById('status');
+      if (status) status.textContent = data.messages.join(' | ');
+    }
+  })
+  .catch(function () {});
+}
+
+function onSubBarToggle() {
+  var cb = document.getElementById('cfgSubBar');
+  var sel = document.getElementById('cfgSubBarRes');
+  var toggles = document.querySelectorAll('.exec-toggle');
+  if (cb && sel) sel.style.display = cb.checked ? 'inline-block' : 'none';
+  toggles.forEach(function (t) { t.style.display = cb.checked ? 'inline-block' : 'none'; });
+}
+
+function tfMs(tf) {
+  return { '1m':60000,'5m':300000,'15m':900000,'30m':1800000,'1H':3600000,'2H':7200000,'4H':14400000,'6H':21600000,'12H':43200000,'1D':86400000,'1W':604800000,'1M':2592000000 }[tf] || 3600000;
 }
 
 // ── Clear config ──
@@ -1848,64 +1782,80 @@ function clearConfig() {
   document.getElementById('paramsEngineSection').style.display = 'none';
   _currentConfig = null;
   hideStrategyActions();
+  localStorage.removeItem('strategyLabConfig');
 }
 
 // ── Get config from UI ──
-function getSearchConfig() {
+function getSearchConfig(side) {
   var ex = document.getElementById('cfgExchange');
   var sym = document.getElementById('cfgSymbol');
   var tf = document.getElementById('cfgTimeframe');
-  if (!ex || !sym) return null;
+  if (!ex || !sym || !tf || !ex.value || !sym.value || !tf.value) return null;
 
+  // Read trades from DOM
   var trades = { long: [], short: [] };
-  ['long', 'short'].forEach(function (side) {
-    var container = document.getElementById(side + 'Trades');
+  ['long', 'short'].forEach(function (s) {
+    var container = document.getElementById(s + 'Trades');
     if (!container) return;
     var cards = container.querySelectorAll('.trade-card');
     for (var ci = 0; ci < cards.length; ci++) {
       var card = cards[ci];
       var trade = { open: getSectionData(card, 0), close: getSectionData(card, 1) };
-      trades[side].push(trade);
+      trades[s].push(trade);
     }
   });
 
-  // Flatten all conditions into groups for the backend API
+  // Flatten all conditions and collect orders
   var allGroups = [];
+  var allOrders = [];
   var allLogic = 'AND';
-  trades.long.concat(trades.short).forEach(function (t) {
-    [t.open, t.close].forEach(function (s) {
-      if (s.conditions && s.conditions.length) {
-        s.conditions.forEach(function (g) {
-          if (g.conditions && g.conditions.length) allGroups.push(g);
-        });
-      }
+  var dir = side || document.getElementById('cfgDirection').value;
+  if (dir === 'both') dir = 'long';
+  if (dir === 'long_only') dir = 'long';
+  if (dir === 'short_only') dir = 'short';
+  var activeSides = dir === 'long' ? ['long'] : ['short'];
+  activeSides.forEach(function (s) {
+    (trades[s] || []).forEach(function (t) {
+      [t.open, t.close].forEach(function (section) {
+        if (section.conditions && section.conditions.length) {
+          section.conditions.forEach(function (g) {
+            if (g.conditions && g.conditions.length) allGroups.push(g);
+          });
+        }
+        if (section.orders && section.orders.length) {
+          section.orders.forEach(function (o) { allOrders.push(o); });
+        }
+      });
     });
   });
 
   if (allGroups.length === 0) return null;
 
-  var lookahead = parseInt(document.getElementById('cfgLookahead').value) || 5;
+  var lookahead = parseInt(document.getElementById('cfgLookahead').value) || 0;
   var minOcc = parseInt(document.getElementById('cfgMinOcc').value) || 5;
   var mcShuffles = parseInt(document.getElementById('cfgMCShuffles').value) || 500;
-  var wfEnabled = document.getElementById('cfgWF').checked;
   var wfWindows = parseInt(document.getElementById('cfgWFWindows').value) || 5;
   var wfTrainPct = (parseInt(document.getElementById('cfgWFTrainPct').value) || 70) / 100;
   var startDate = document.getElementById('cfgStartDate').value;
   var endDate = document.getElementById('cfgEndDate').value;
+  var subBarCb = document.getElementById('cfgSubBar');
+  var subBarRes = document.getElementById('cfgSubBarRes');
 
   var cfg = {
     exchange: ex.value, symbol: sym.value, timeframe: tf.value,
     lookahead: lookahead,
     min_occurrences: minOcc,
     monte_carlo_shuffles: mcShuffles,
+    walk_forward: true,
+    walk_windows: wfWindows,
+    walk_train_pct: wfTrainPct,
     groups: allGroups,
     logic: allLogic,
     direction: document.getElementById('cfgDirection').value,
   };
-  if (wfEnabled) {
-    cfg.walk_forward = true;
-    cfg.walk_windows = wfWindows;
-    cfg.walk_train_pct = wfTrainPct;
+  if (allOrders.length) cfg.orders = allOrders;
+  if (subBarCb && subBarCb.checked) {
+    cfg.sub_bar = { enabled: true, resolution: subBarRes ? subBarRes.value : '1m' };
   }
   if (startDate) cfg.start_time = new Date(startDate).getTime();
   if (endDate) cfg.end_time = new Date(endDate).getTime();
@@ -1929,11 +1879,13 @@ function getSectionData(card, sectionIdx) {
     for (var ri = 0; ri < rows.length; ri++) {
       var row = rows[ri];
       if (row.dataset.parsed !== '1') continue;
+      var rawVal = row.dataset.value;
+      var parsedVal = isNaN(parseFloat(rawVal)) ? rawVal : parseFloat(rawVal);
       var cond = {
         subcategory: row.dataset.subcategory || 'threshold',
         metric: row.dataset.metric,
         op: row.dataset.op,
-        value: parseFloat(row.dataset.value),
+        value: parsedVal,
       };
       if (row.dataset.params && row.dataset.params !== '{}') {
         try { cond.params = JSON.parse(row.dataset.params); } catch(e) {}
@@ -1950,11 +1902,13 @@ function getSectionData(card, sectionIdx) {
     var or = orderRows[oi];
     var selects = or.querySelectorAll('select');
     var inputs = or.querySelectorAll('input[type=number]');
+    var execEl = or.querySelector('.exec-toggle');
     orders.push({
       type: selects[0] ? selects[0].value : 'market',
       size: inputs[0] ? parseFloat(inputs[0].value) || 1 : 1,
       size_type: selects[1] ? selects[1].value : 'percent',
       price: inputs[1] ? parseFloat(inputs[1].value) || null : null,
+      execution: execEl ? execEl.value : 'close',
     });
   }
 
@@ -1963,15 +1917,18 @@ function getSectionData(card, sectionIdx) {
 
 // ── Config JSON (full export schema) ──
 function getConfigJSON() {
+  var subBarCb = document.getElementById('cfgSubBar');
+  var subBarRes = document.getElementById('cfgSubBarRes');
   var cfg = {
     name: document.getElementById('cfgName').value,
     exchange: document.getElementById('cfgExchange').value,
     symbol: document.getElementById('cfgSymbol').value,
     timeframe: document.getElementById('cfgTimeframe').value,
-    leverage: parseFloat(document.getElementById('cfgLeverage').value) || 1,
+    leverage: parseFloat(document.getElementById('cfgLeverage').value.replace('X', '')) || 1,
     direction: document.getElementById('cfgDirection').value,
-    lookahead: parseInt(document.getElementById('cfgLookahead').value) || 5,
+    lookahead: parseInt(document.getElementById('cfgLookahead').value) || 0,
     min_occurrences: parseInt(document.getElementById('cfgMinOcc').value) || 5,
+    sub_bar: subBarCb && subBarCb.checked ? { enabled: true, resolution: subBarRes ? subBarRes.value : '1m' } : { enabled: false },
     trades: { long: [], short: [] },
   };
 
@@ -2019,42 +1976,6 @@ function saveStrategy() {
   });
 }
 
-function loadStrategy() {
-  fetch('/strategy-lab/strategies')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (!data.strategies || !data.strategies.length) {
-        addChatMessage('system', 'No saved strategies found');
-        return;
-      }
-      var html = '<div style="font-size:12px;margin:8px 0"><b>Saved strategies:</b><br>';
-      for (var si = 0; si < data.strategies.length; si++) {
-        var s = data.strategies[si];
-        html += '<div style="padding:4px 0;border-bottom:1px solid #0f3460;display:flex;justify-content:space-between">'
-          + '<a href="#" onclick="loadStrategyByName(\\'' + s.name.replace(/\\'/g, '\\u0027') + '\\');return false" style="color:#26a69a;font-size:12px">' + s.name + '</a>'
-          + '<span style="font-size:10px;color:#555">' + (s.created || '') + '</span>'
-          + '</div>';
-      }
-      html += '</div>';
-      addChatMessage('ai', html, true);
-    })
-    .catch(function (err) { addChatMessage('system', 'Error loading: ' + err.message); });
-}
-
-function loadStrategyByName(name) {
-  fetch('/strategy-lab/strategy/' + encodeURIComponent(name))
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (data.config) {
-        renderConfig(data.config);
-        addChatMessage('system', '✅ Loaded: ' + name);
-      } else {
-        addChatMessage('system', 'Error: ' + (data.error || 'unknown'));
-      }
-    })
-    .catch(function (err) { addChatMessage('system', 'Error: ' + err.message); });
-}
-
 function exportConfigJSON() {
   var cfg = getConfigJSON();
   if (!cfg) { addChatMessage('system', 'Nothing to export'); return; }
@@ -2069,70 +1990,176 @@ function exportConfigJSON() {
   addChatMessage('system', '📄 Config exported as JSON');
 }
 
+function importConfigJSON(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var cfg = JSON.parse(e.target.result);
+      if (!cfg || typeof cfg !== 'object') { addChatMessage('system', '❌ Invalid JSON: not an object'); return; }
+      var config = cfg.response || cfg;
+      if (!config.trades && !config.exchange && cfg.trades) config = cfg;
+      renderConfig(config);
+      saveStrategyState();
+      addChatMessage('system', '✅ Config imported: ' + (config.name || file.name));
+    } catch (err) {
+      addChatMessage('system', '❌ Failed to parse JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 // ── Run Search ──
-async function runSearch() {
-  var cfg = getSearchConfig();
-  if (!cfg) {
-    document.getElementById('status').textContent = 'Build a strategy via chat first, or add conditions below';
-    addChatMessage('system', '❌ Configuration invalide — verifiez les conditions ou ajoutez des conditions de sortie');
+async function searchSide(side) {
+  var cfg = getSearchConfig(side);
+  if (!cfg || !cfg.groups || !cfg.groups.length) return null;
+
+  var startTime = Date.now();
+  var r = await fetch('/api/edge/search', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg),
+  });
+  var data = await r.json();
+  data._side = side;
+  data._cfg = cfg;
+  data._elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  return data;
+}
+
+var _sideResults = { long: null, short: null };
+var _activeSide = 'long';
+
+function renderSideToggle() {
+  var container = document.getElementById('sideToggle');
+  if (!container) return;
+  var hasLong = _sideResults.long !== null;
+  var hasShort = _sideResults.short !== null;
+  if (!hasLong && !hasShort) { container.innerHTML = ''; container.classList.add('hidden'); return; }
+  if (!hasLong || !hasShort) { container.innerHTML = ''; container.classList.add('hidden'); return; }
+  container.classList.remove('hidden');
+  container.innerHTML = '<span class="st-label" style="font-size:11px;color:#888;margin-right:8px">View:</span>'
+    + '<button class="btn btn-xs' + (_activeSide === 'long' ? ' active' : '') + '" onclick="switchSide(\\'long\\')">LONG</button>'
+    + '<button class="btn btn-xs' + (_activeSide === 'short' ? ' active' : '') + '" onclick="switchSide(\\'short\\')">SHORT</button>';
+}
+
+function switchSide(side) {
+  _activeSide = side;
+  var data = _sideResults[side];
+  if (!data) return;
+  renderSideToggle();
+  _lastResult = data;
+  renderStats(data);
+  renderEdgeBrowser(data);
+  var dir = document.getElementById('cfgDirection').value;
+  if (dir === 'both') {
+    var totalOcc = (_sideResults.long ? (_sideResults.long.occurrences || 0) : 0)
+      + (_sideResults.short ? (_sideResults.short.occurrences || 0) : 0);
+    document.getElementById('status').textContent = 'LONG: ' + (_sideResults.long ? (_sideResults.long.occurrences || 0) : 0)
+      + ' occ | SHORT: ' + (_sideResults.short ? (_sideResults.short.occurrences || 0) : 0)
+      + ' occ | Total: ' + totalOcc + ' — showing ' + side.toUpperCase();
+  }
+}
+
+function renderSearchResults(data) {
+  if (!data || data.error) {
+    if (data) document.getElementById('status').textContent = (data.occurrences || 0) + ' occ — ' + data.error;
     return;
   }
 
+  _lastResult = data;
+  _activeSide = data._side || 'long';
+  if (data._side) _sideResults[data._side] = data;
+
+  var elapsed = data._elapsed || '0.0';
+  document.getElementById('status').textContent = (data.occurrences || 0) + ' occ, ' + (data.forward_count || 0) + ' fwd (' + elapsed + 's)';
+  document.getElementById('resultsContent').classList.remove('hidden');
+
+  // Store and restore histogram canvas (only render for current side)
+  renderStats(data);
+  renderHistogram(data);
+  renderEdgeBrowser(data);
+  renderSideToggle();
+
+  if (data.walk_forward) { renderWalkForward(data.walk_forward); document.getElementById('wfContent').classList.remove('hidden'); }
+  if (data.monte_carlo) { renderMonteCarlo(data.monte_carlo); document.getElementById('mcContent').classList.remove('hidden'); }
+  document.getElementById('exportContent').classList.remove('hidden');
+  document.getElementById('exportStatus').textContent = 'Ready to export ' + (data.occurrences || 0) + ' occurrences';
+
+  var sideLabel = data._side === 'long' ? 'LONG' : data._side === 'short' ? 'SHORT' : '';
+  var wrCls = (data.win_rate || 0) >= 50 ? '✅' : '⚠️';
+  var recap = '<div style="font-size:12px;line-height:1.6">'
+    + '<strong>Backtest Results' + (sideLabel ? ' (' + sideLabel + ')' : '') + '</strong><br>'
+    + wrCls + ' Win Rate: <strong>' + (data.win_rate || 0).toFixed(1) + '%</strong> &nbsp;|&nbsp; '
+    + 'Sharpe: <strong>' + (data.sharpe || 0).toFixed(2) + '</strong> &nbsp;|&nbsp; '
+    + 'PF: <strong>' + ((data.profit_factor || 0) === Infinity ? '∞' : (data.profit_factor || 0).toFixed(2)) + '</strong><br>'
+    + 'Occurrences: ' + (data.occurrences || 0) + ' &nbsp;|&nbsp; '
+    + 'Avg Return: ' + (data.avg_return || 0).toFixed(4) + '% &nbsp;|&nbsp; '
+    + 'Max DD: ' + (data.max_drawdown || 0).toFixed(2) + '%<br>'
+    + '<span style="font-size:10px;color:#555">' + elapsed + 's &nbsp;•&nbsp; '
+    + '<a href="#" onclick="switchRtab(\\'main\\');return false" style="color:#26a69a">View in Results tab →</a></span>'
+    + '</div>';
+  addChatMessage('ai', recap, true);
+
+  // Auto-run sweep
+  if (data._cfg) runSweep(data._cfg);
+}
+
+async function runSearch() {
+  saveStrategyState();
+  var dir = document.getElementById('cfgDirection').value;
+
   var status = document.getElementById('status');
-  status.textContent = 'Searching...';
   document.getElementById('resultsContent').classList.add('hidden');
   document.getElementById('wfContent').classList.add('hidden');
   document.getElementById('mcContent').classList.add('hidden');
   document.getElementById('exportContent').classList.add('hidden');
   switchRtab('main');
 
-  try {
-    var startTime = Date.now();
-    var r = await fetch('/api/edge/search', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg),
-    });
-    var data = await r.json();
-    _lastResult = data;
-
-    if (data.error) {
-      status.textContent = data.occurrences + ' occ — ' + data.error;
-      return;
+  if (dir === 'both') {
+    _sideResults = { long: null, short: null };
+    status.textContent = 'Searching LONG...';
+    var longData = await searchSide('long');
+    if (longData && !longData.error) {
+      _sideResults.long = longData;
+      _sideResults.long._side = 'long';
+      renderSearchResults(longData);
     }
 
-    var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    status.textContent = data.occurrences + ' occ, ' + data.forward_count + ' fwd (' + elapsed + 's)';
-    document.getElementById('resultsContent').classList.remove('hidden');
-    renderStats(data);
-    renderHistogram(data);
-    renderEdgeBrowser(data);
+    status.textContent = 'Searching SHORT...';
+    var shortData = await searchSide('short');
+    if (shortData && !shortData.error) {
+      _sideResults.short = shortData;
+      _sideResults.short._side = 'short';
+      renderSearchResults(shortData);
+    }
 
-    if (data.walk_forward) { renderWalkForward(data.walk_forward); document.getElementById('wfContent').classList.remove('hidden'); }
-    if (data.monte_carlo) { renderMonteCarlo(data.monte_carlo); document.getElementById('mcContent').classList.remove('hidden'); }
-    document.getElementById('exportContent').classList.remove('hidden');
-    document.getElementById('exportStatus').textContent = 'Ready to export ' + data.occurrences + ' occurrences';
+    var totalOcc = (_sideResults.long ? (_sideResults.long.occurrences || 0) : 0)
+      + (_sideResults.short ? (_sideResults.short.occurrences || 0) : 0);
+    status.textContent = 'LONG: ' + (_sideResults.long ? (_sideResults.long.occurrences || 0) : 0)
+      + ' occ | SHORT: ' + (_sideResults.short ? (_sideResults.short.occurrences || 0) : 0)
+      + ' occ | Total: ' + totalOcc;
+    renderSideToggle();
+    return;
+  }
 
-    // Chat recap
-    var wrCls = data.win_rate >= 50 ? '✅' : '⚠️';
-    var recap = '<div style="font-size:12px;line-height:1.6">'
-      + '<strong>Backtest Results</strong><br>'
-      + wrCls + ' Win Rate: <strong>' + data.win_rate.toFixed(1) + '%</strong> &nbsp;|&nbsp; '
-      + 'Sharpe: <strong>' + data.sharpe.toFixed(2) + '</strong> &nbsp;|&nbsp; '
-      + 'PF: <strong>' + (data.profit_factor === Infinity ? '∞' : data.profit_factor.toFixed(2)) + '</strong><br>'
-      + 'Occurrences: ' + data.occurrences + ' &nbsp;|&nbsp; '
-      + 'Avg Return: ' + data.avg_return.toFixed(4) + '% &nbsp;|&nbsp; '
-      + 'Max DD: ' + data.max_drawdown.toFixed(2) + '%<br>'
-      + '<span style="font-size:10px;color:#555">' + elapsed + 's &nbsp;•&nbsp; '
-      + '<a href="#" onclick="switchRtab(\\'main\\');return false" style="color:#26a69a">View in Results tab →</a></span>'
-      + '</div>';
-    addChatMessage('ai', recap, true);
+  _sideResults = { long: null, short: null };
+  status.textContent = 'Searching...';
+  try {
+    var data = await searchSide();
+    if (data && data.error) {
+      status.textContent = (data.occurrences || 0) + ' occ — ' + data.error;
+      return;
+    }
+    renderSearchResults(data);
   } catch (err) {
     status.textContent = 'Error: ' + err.message;
   }
 }
 
 // ── Run Sweep ──
-async function runSweep() {
-  var cfg = getSearchConfig();
+async function runSweep(cfg) {
+  cfg = cfg || getSearchConfig();
   if (!cfg) {
     document.getElementById('status').textContent = 'Build a strategy via chat first';
     return;
@@ -2171,9 +2198,9 @@ async function runSweep() {
     for (var ri = 0; ri < data.results.length; ri++) {
       var r = data.results[ri];
       html += '<tr><td>' + r.sweep_metric + '</td><td>' + r.sweep_value + '</td><td>' + r.sweep_lookahead + '</td>'
-        + '<td class="' + (r.win_rate >= 50 ? 'pos' : 'neg') + '">' + r.win_rate + '%</td>'
-        + '<td class="' + (r.sharpe >= 1 ? 'pos' : r.sharpe >= 0 ? 'neu' : 'neg') + '">' + r.sharpe + '</td>'
-        + '<td>' + r.occurrences + '</td><td>' + r.avg_return + '%</td><td>' + r.profit_factor + '</td></tr>';
+        + '<td class="' + ((r.win_rate || 0) >= 50 ? 'pos' : 'neg') + '">' + (r.win_rate || 0) + '%</td>'
+        + '<td class="' + ((r.sharpe || 0) >= 1 ? 'pos' : (r.sharpe || 0) >= 0 ? 'neu' : 'neg') + '">' + (r.sharpe || 0) + '</td>'
+        + '<td>' + (r.occurrences || 0) + '</td><td>' + (r.avg_return || 0) + '%</td><td>' + (r.profit_factor || 0) + '</td></tr>';
     }
     html += '</tbody>';
     document.getElementById('sweepTable').innerHTML = html;
@@ -2203,16 +2230,16 @@ function sortSweepTable(col) {
 function renderStats(data) {
   var grid = document.getElementById('statGrid');
   var cards = [
-    { label: 'Occurrences', val: data.occurrences, cls: 'neu' },
-    { label: 'Forward Count', val: data.forward_count, cls: 'neu' },
-    { label: 'Win Rate', val: data.win_rate.toFixed(1) + '%', cls: data.win_rate >= 50 ? 'pos' : 'neg' },
-    { label: 'Wins / Losses', val: data.wins + ' / ' + data.losses, cls: 'neu' },
-    { label: 'Avg Return', val: data.avg_return.toFixed(4) + '%', cls: data.avg_return >= 0 ? 'pos' : 'neg' },
-    { label: 'Avg Win', val: data.avg_win.toFixed(4) + '%', cls: 'pos' },
-    { label: 'Avg Loss', val: data.avg_loss.toFixed(4) + '%', cls: 'neg' },
-    { label: 'Profit Factor', val: data.profit_factor === Infinity ? '\u221e' : data.profit_factor.toFixed(2), cls: data.profit_factor >= 1 ? 'pos' : 'neg' },
-    { label: 'Sharpe', val: data.sharpe.toFixed(2), cls: data.sharpe >= 1 ? 'pos' : data.sharpe >= 0 ? 'neu' : 'neg' },
-    { label: 'Max DD', val: data.max_drawdown.toFixed(2) + '%', cls: 'neg' },
+    { label: 'Occurrences', val: data.occurrences || 0, cls: 'neu' },
+    { label: 'Forward Count', val: data.forward_count || 0, cls: 'neu' },
+    { label: 'Win Rate', val: (data.win_rate || 0).toFixed(1) + '%', cls: (data.win_rate || 0) >= 50 ? 'pos' : 'neg' },
+    { label: 'Wins / Losses', val: (data.wins || 0) + ' / ' + (data.losses || 0), cls: 'neu' },
+    { label: 'Avg Return', val: (data.avg_return || 0).toFixed(4) + '%', cls: (data.avg_return || 0) >= 0 ? 'pos' : 'neg' },
+    { label: 'Avg Win', val: (data.avg_win || 0).toFixed(4) + '%', cls: 'pos' },
+    { label: 'Avg Loss', val: (data.avg_loss || 0).toFixed(4) + '%', cls: 'neg' },
+    { label: 'Profit Factor', val: (data.profit_factor || 0) === Infinity ? '\u221e' : (data.profit_factor || 0).toFixed(2), cls: (data.profit_factor || 0) >= 1 ? 'pos' : 'neg' },
+    { label: 'Sharpe', val: (data.sharpe || 0).toFixed(2), cls: (data.sharpe || 0) >= 1 ? 'pos' : (data.sharpe || 0) >= 0 ? 'neu' : 'neg' },
+    { label: 'Max DD', val: (data.max_drawdown || 0).toFixed(2) + '%', cls: 'neg' },
   ];
   grid.innerHTML = cards.map(function (c) { return '<div class="stat-card"><div class="val ' + c.cls + '">' + c.val + '</div><div class="lbl">' + c.label + '</div></div>'; }).join('');
 }
@@ -2245,7 +2272,7 @@ function renderHistogram(data) {
       scales: { x: { ticks: { color: '#888', font: { size: 9 }, maxRotation: 45 }, grid: { color: '#0f3460' } }, y: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: '#0f3460' }, beginAtZero: true } }
     }
   });
-  legend.textContent = 'Distribution of forward returns (' + data.forward_count + ' samples)';
+  legend.textContent = 'Distribution of forward returns (' + (data.forward_count || 0) + ' samples)';
   canvas.style.height = '200px';
 }
 
@@ -2326,22 +2353,107 @@ function doExport(fmt) {
   window.open('/api/edge/export?' + params + '&' + condParams, '_blank');
 }
 
+// ── State persistence (localStorage) ──
+function saveStrategyState() {
+  try {
+    var config = getConfigJSON();
+    if (config && config.exchange) {
+      localStorage.setItem('strategyLabConfig', JSON.stringify(config));
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function restoreStrategyState() {
+  try {
+    var raw = localStorage.getItem('strategyLabConfig');
+    if (!raw) return false;
+    var config = JSON.parse(raw);
+    if (!config || !config.exchange) return false;
+    renderConfig(config);
+    return true;
+  } catch (e) {
+    localStorage.removeItem('strategyLabConfig');
+    return false;
+  }
+}
+
+function saveChatState() {
+  try {
+    localStorage.setItem('strategyLabChat', JSON.stringify(_chatHistory.slice(-CHAT_MAX)));
+  } catch (e) { /* ignore quota */ }
+}
+
+function restoreChatState() {
+  try {
+    var raw = localStorage.getItem('strategyLabChat');
+    if (!raw) return false;
+    var msgs = JSON.parse(raw);
+    if (!msgs || !msgs.length) return false;
+    var log = document.getElementById('chatLog');
+    for (var i = 0; i < msgs.length; i++) {
+      var m = msgs[i];
+      var time = new Date(m.time || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      var formatted = m.raw ? m.content : renderMarkdown(m.content);
+      if (m.role === 'ai') {
+        var last = log.lastElementChild;
+        if (last && last.classList.contains('ai')) {
+          last.querySelector('.ai-body').insertAdjacentHTML('beforeend',
+            '<hr class="ai-sep"><span>' + formatted + '</span>');
+          continue;
+        }
+        var div = document.createElement('div');
+        div.className = 'msg ai';
+        div.innerHTML = '<div class="ai-line"><span class="ai-avatar">A</span><span class="ai-body">' + formatted + '</span></div><span class="time">' + time + '</span>';
+        log.appendChild(div);
+      } else {
+        var div = document.createElement('div');
+        div.className = 'msg ' + m.role;
+        div.innerHTML = formatted + '<span class="time">' + time + '</span>';
+        log.appendChild(div);
+      }
+    }
+    log.scrollTop = log.scrollHeight;
+    return true;
+  } catch (e) {
+    localStorage.removeItem('strategyLabChat');
+    return false;
+  }
+}
+
+var _saveTimer = null;
+function autoSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveStrategyState, 500);
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function () {
-  showDefaultConfig();
+  var restored = restoreStrategyState();
+  if (!restored) {
+    showDefaultConfig();
+  }
   connectWS();
   loadCustomOrderTypes();
   chatInput.addEventListener('input', function () {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 150) + 'px';
   });
-  addChatMessage('system', '━━━ How the Strategy Lab works ━━━');
-  addChatMessage('system', '1. Fill out the strategy config (header + trade cards) directly');
-  addChatMessage('system', '2. Or describe your idea in the chat — OpenCode builds it for you');
-  addChatMessage('system', '3. Add conditions, orders, and extra trades as needed');
-  addChatMessage('system', '4. Click Run Search to backtest');
-  addChatMessage('system', '━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  addChatMessage('ai', 'Ready. The strategy config is pre-filled with defaults — edit any field or describe changes in chat.');
+  var hasChat = restoreChatState();
+  if (!hasChat && !restored) {
+    addChatMessage('system', '━━━ How the Strategy Lab works ━━━');
+    addChatMessage('system', '1. Fill out the strategy config (header + trade cards) directly');
+    addChatMessage('system', '2. Or describe your idea in the chat — OpenCode builds it for you');
+    addChatMessage('system', '3. Add conditions, orders, and extra trades as needed');
+    addChatMessage('system', '4. Click Run Search to backtest');
+    addChatMessage('system', '━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    addChatMessage('ai', 'Ready. The strategy config is pre-filled with defaults — edit any field or describe changes in chat.');
+  } else if (restored || hasChat) {
+    addChatMessage('system', '💾 State restored from last session.');
+  }
+
+  // Auto-save on any change in the config area
+  document.getElementById('app').addEventListener('change', autoSave);
+  document.getElementById('app').addEventListener('input', autoSave);
 });
 </script>
 <!-- ── Condition Browser Modal ── -->

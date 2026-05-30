@@ -4,6 +4,133 @@
 
 ---
 
+## 2026-05-30 — Session 034 : Strategy converter + cloud performance fix + audit skill phases
+
+**Duration** : ~3h  
+**Context** : Implemented NL/PineScript/Rust/Python strategy converter page, fixed chart cloud slowness (3 perf bottlenecks), updated project-audit skill with Phases 8-10, added subscription cleanup rules.
+
+### Added
+
+- **Strategy converter page** — `/convert` route with split-panel UI, direction selector (5 modes), Convert button with loading state, Copy output, error display. Nav links to all existing pages.
+- **POST /api/convert** — Groq-powered LLM endpoint with 5 system prompts for:
+  - Natural Language → Python strategy (`decide(i, ohlcv)` with `vibe_engine`)
+  - Natural Language → PineScript v5
+  - PineScript → Python (translates `ta.*` to `ve.*`)
+  - Python → PineScript (translates `ve.*` + `decide()` to v5)
+  - Natural Language → Rust (`fn decide()` with `vibe_engine_rs`)
+- **project-audit Phase 8 — Performance audit** — Checks for forced layout/reflow (`getBoundingClientRect` in hot paths), rAF loop efficiency (dirty flag vs polling), subscription pile-up, `innerHTML` in tight loops, Canvas redraw waste.
+- **project-audit Phase 9 — Subscription/cleanup audit** — Scans `subscribe*`/`addEventListener`/`ResizeObserver`/`setTimeout` and verifies matching `unsubscribe`/`removeEventListener`/`disconnect`/`clearTimeout`.
+- **project-audit Phase 10 — JS bundle size / dead code audit** — Counts inline script blocks, surfaces unused functions, flags `console.log` in production.
+- **RULES.md §10 — Subscription cleanup** — Table of subscription/cleanup pairs (crosshair, time range, ResizeObserver, setTimeout, EventSource).  Store handler refs, clean up before re-init.
+- **code-quality §16 — E2E smoke test** — Runs `chat_e2e.py smoke` before marking any server change complete.
+- **code-quality §17 — Subscription cleanup audit** — Greps for subscription/cleanup pairs.
+- **code-quality §18 — New page registration** — Checklist for router registration, smoke test coverage, nav links.
+
+### Changed
+
+- **Cloud rAF loop — hybrid subscription+dirty flag** — Replaced 60fps `getVisibleLogicalRange()` polling with single `subscribeVisibleTimeRangeChange` that sets `_cloudDirty` boolean. rAF loop only checks the flag. Zero CPU churn when chart is idle.
+- **`drawCloud()` — removed `getBoundingClientRect()`** — Dimensions now cached from `ResizeObserver.contentRect` (stored in `_ichimokuCloudData._width/_height`). No forced layout reflow on every redraw.
+- **`drawCloud()` — removed O(N×M) fallback loop** — Removed nested `for...in` scan over all `indicatorSeries` when primary `refSeries` fails to convert prices. Points that can't convert are now skipped immediately.
+- **`renderIchimokuCloud()` — always recreate canvas** — Removed stale-element reuse logic; always removes old `#cloudOverlay` and creates fresh one. Prevents orphaned elements.
+- **`removeCloudOverlay()` — proper cleanup** — Unsubscribes `visibleTimeRangeChange` handler, disconnects `ResizeObserver` before nulling data.
+- **`stopLive()`/`startLive()` — EventSource timer cleanup** — Retry timer ID stored in `window._liveRetryTimer`, cancelled in `stopLive()` to prevent timer pile-up during network flapping.
+- **`project-audit/skill.md`** — Fixed Phase 2 dep audit command (extracts import names vs requirements.txt), Phase 3 git command (`--exclude-standard`), Phase 5 file org (added orphaned DOM element check).
+- **`chat_e2e.py` smoke** — Added `/convert` page HTTP 200 check, `_check_convert_html()` with 11 HTML element checks, 5 JS global checks, POST `/api/convert` API endpoint test.
+- **`ROADMAP.md`** — Added Strategy Converter section (7 checkboxes) + cloud perf fix entry to Dashboard section.
+- **`RULES.md` §9** — Added `chat_e2e.py smoke` to mandatory tool execution list.
+- **`code-quality/skill.md`** — Added `api/convert.py` to pyjs-quote script list.
+
+### Fixed
+
+- **Chart cloud slowness (high CPU)** — Three root causes: `getBoundingClientRect()` in `drawCloud()` (forced reflow every frame), rAF loop calling `getVisibleLogicalRange()` 60fps unnecessarily, O(N×M) fallback loop scanning all indicator series per point. All three eliminated — chart now idle when not scrolling.
+- **EventSource.onerror timer leak** — `setTimeout` in `startLive()` was never cancelled; repeated `onerror` firings during network flapping created unbounded timer queue.
+- **JS SyntaxError in `renderIchimokuCloud`** — Extra `}` brace from code replacement broke JS parsing (caught by smoke test).
+
+### Files changed (Session 034)
+
+- `api/convert.py` — new file, 402 lines (converter page + API)
+- `api/dashboard.py` — cloud perf (rAF hybrid, no getBoundingClientRect, no fallback), SSE timer cleanup, canvas recreate
+- `api/main.py` — +2 lines (convert_router import + register)
+- `scripts/chat_e2e.py` — convert page checks (HTML/JS/API)
+- `.opencode/skills/code-quality/SKILL.md` — items 16-18, convert.py added
+- `ROADMAP.md` — Strategy Converter section (7 items), cloud perf entry
+- `RULES.md` — §10 subscription cleanup, smoke test in §9
+- `~/.config/opencode/skills/project-audit/SKILL.md` — Phases 8-10, fixes to Phases 2/3/5
+
+### Verification
+
+- ✅ Smoke test: 50/50 checks pass (dashboard, strategy-lab, convert pages)
+- ✅ Convert API: all 5 directions produce valid code
+- ✅ pyjs-quote check: PASS on all files
+- ✅ Chart cloud: no getBoundingClientRect in hot path, no 60fps polling
+**Duration** : ~2h  
+**Context** : Extended indicator system with TradingView-style per-line customization (color, width, visibility for each multi-line member), unlimited candle computation, configurable momentum oscillator zones (overbought/oversold/midline), Ichimoku cloud color controls, and time scale visibility below sub-panes.
+
+### Added
+
+- **Unlimited indicator calculation** — `query_candles()` in `candles/storage/db.py` now accepts `limit=0` as unlimited (no SQL `LIMIT`), plus `desc=True` for descending order. `compute_indicators()` uses `limit=0` + `desc=True` + reverse to get all candles chronologically.
+- **Per-line settings (TV-style)** — `INDICATOR_LINES` config object defines per-line members for all 14 indicators (ichimoku: 5 lines + cloud, bbands: 3, macd: 3, stoch: 2, etc.), each with default color, width, visibility, label. Config panel `openIndicatorConfig()` renders individual sections per line with color picker (`<input type="color">`), width dropdown (1-5), and visibility checkbox. `applyIndicatorConfig()` reads per-line settings from DOM and stores in `ind.params.lines`. `renderIndicatorSeries()` looks up per-line settings when creating series, skipping hidden lines.
+- **Ichimoku cloud config** — Cloud section in config panel with green/red fill inputs: `<input type="color">` + opacity dropdown (0.1-0.5). Colors stored as rgba strings via `hexToRgba()` helper. `renderIchimokuCloud()` reads `params.lines.cloud` dynamically.
+- **Momentum oscillator zones** — `INDICATOR_ZONES` config with default levels, colors, labels for RSI (30/50/70), Stoch (20/50/80), Williams %R (-20/-50/-80), CCI (-100/0/100), MFI (20/50/80). Config panel renders zone rows with level `<input>`, color picker, and visibility toggle. After series creation, `renderIndicatorSeries()` calls `series.createPriceLine()` for each visible zone, attaching dashed horizontal lines + axis labels to the indicator's pane.
+- **Time scale always visible** — Changed `#chart-wrapper` from `height: calc(100vh - 46px)` to `min-height: calc(100vh - 46px); height: auto` and `#chart` from `height:100%` to `flex:1` so pane headers don't push the LWC time scale out of view.
+
+### Changed
+
+- `candles/storage/db.py:78,108` — `query_candles()` added `desc=False` param, `limit=0` = unlimited
+- `api/routes.py:1867` — `compute_indicators()` uses `limit=0` + `desc=True` + reverse
+- `api/dashboard.py` — Added `INDICATOR_LINES` config (14 indicators), `INDICATOR_ZONES` config (5 oscillators), `hexToRgba()` helper. Updated `addIndicator()` to init `lines`/`zones`. Updated `computeAndRenderIndicators()` to strip `lines`/`zones` from API params. Rewrote `openIndicatorConfig()` with per-line sections + zone controls. Rewrote `applyIndicatorConfig()` with per-line readout + zone readout + rgba cloud colors. Updated `renderIndicatorSeries()` for per-line color/width/visible + zone `createPriceLine()`. Updated `renderIchimokuCloud()` for dynamic cloud colors.
+- `ROADMAP.md` — Added 5 new checkboxes for per-line settings, unlimited calc, cloud config, zones, time scale fix
+
+### Files changed
+- `candles/storage/db.py` — unlimited query support
+- `api/routes.py` — unlimited compute
+- `api/dashboard.py` — per-line settings, zone rendering, cloud colors, time scale CSS
+- `ROADMAP.md` — 5 new checkboxes
+
+### Notes
+- Server restart required: `scripts/server.sh restart 8001`
+- Indicator config UI now matches TradingView workflow: click indicator name → per-line color/width/visible settings → apply → series re-render
+- Zone lines use `LightweightCharts.LineStyle.Dashed` and are attached to the indicator's reference series via `createPriceLine()`
+- Zone lines persist across re-renders via inline property `_pline_<indName>_<zoneKey>` on the series object
+- No new ERRORS.md entries (feature implementation, no bugs)
+
+---
+
+## 2026-05-29 — Session 031 : Search long+short mixing, Import JSON, localStorage persistence, both-direction search
+
+**Duration** : ~2h
+
+### Fixed
+
+- **getSearchConfig mélange long+short** — `getSearchConfig()` collectait toutes les conditions des trades long ET short et les mergeait avec AND. 0 matches quand les deux côtés avaient des conditions opposées.
+  - Fix : `getSearchConfig(side)` accepte un paramètre optionnel `'long'` ou `'short'`. Direction `both` → deux recherches indépendantes (long puis short), chaque résultat affiché séparément dans le chat.
+
+### Added
+
+- **Import JSON** — Nouveau bouton qui ouvre le sélecteur de fichier local pour importer un `.json` exporté.
+- **localStorage persistence (config)** — La config est auto-sauvée à chaque modification (debounced 500ms). Restaurée automatiquement au rechargement.
+- **localStorage persistence (chat)** — Le chat est sauvé (100 derniers messages). Restauré au rechargement.
+- **`searchSide(side)`** — Nouvelle fonction factorisée qui exécute une recherche pour un côté donné.
+
+### Removed
+
+- **Bouton "Load" et fonctions associées** — `loadStrategy()` et `loadStrategyByName()` supprimées (polluaient le chat).
+- **Warning "both non supportée"** — remplacé par deux recherches séquentielles.
+
+### Known Issues
+
+- **Multi-trade même direction** — Si tu ajoutes 2 trades long avec des conditions différentes, leurs conditions sont ANDées ensemble (même bug). Fix futur : lancer N recherches (une par trade card) au lieu de tout ANDer.
+
+### Verified
+
+- ✅ API directe : 4363 occurrences sur conditions Ichimoku complètes
+- ✅ Direction `both` : recherche LONG puis SHORT, résultats séparés dans le chat
+- ✅ Import/export JSON roundtrip
+- ✅ localStorage restore config + chat on reload
+- ✅ Health check OK
+
+---
+
 ## 2026-05-26 — Session 027 : Groq API error fix — token limit exceeded, misleading error message, agents fully restored
 
 **Duration** : ~1h
@@ -1164,3 +1291,32 @@ CHRONOLOGIE.md is the **input data** for the synthesis — without it, the synth
 - ✅ JS syntax: validé par node --check
 - ✅ All 3 processes running with .venv/bin/python
 - ✅ Smoke test 5/5 passes
+
+---
+
+## 2026-05-30 — Session 033 : PyJS quoting bug fix + checker toolchain improvement + registration audit
+
+**Duration** : ~1h  
+**Context** : Fixed a JS syntax bug in dashboard.py that prevented the chart from plotting (onchange handler used `\'` which failed in HTML event handler context). Discovered that the `check-pyjs-quotes.sh` checker was silently skipping concatenated JS handlers, and that neither the checker nor the pyjs-quote-debug skill were integrated into the systematic quality process.
+
+### Fixed
+
+- **Dashboard chart not plotting** — line 585: `onchange="document.getElementById(\'icfg_line_\' + member + \')` used `\'` inside a JS single-quoted string, which is an escape (produces `'` in string value) not a string terminator. The `+ member +` became literal text in the rendered HTML attribute. Fixed by switching to alternate quoting: `getElementById(' + "'icfg_line_" + member + "'" + ')`. No more broken chart.
+- **check-pyjs-quotes.sh could validate concatenated handlers** — `is_simple_js()` was returning `False` for any handler with `' + '` pattern (string concatenation with variables), causing the handler to be silently skipped. Added `substitute_vars()` that replaces `+ varName +` patterns with `+ "X" +` dummy values so node can syntax-check the expression.
+- **check-pyjs-quotes.sh confused by `"` inside JS concat handlers** — When JS uses `"...` for inner string literals within a `onchange="..."` attribute, the EVENT_RE regex matched only a fragment (up to the first `"`). Added `looks_truncated()` heuristic + single-quote EVENT_RE_SQ pattern + `normalize_handler()` that strips `\'` → `'` (matching HTML parser behavior). Added whole-script JS validation as a safety net.
+- **False positives from `\'` in extracted handlers** — `normalize_handler()` strips backslash-quote pairs to match what the browser's HTML parser produces before the JS engine runs.
+- **Separated whole-script vs handler validation** — `check_with_node(js_code, allow_subst, allow_normalize)` parameterized; whole-script check uses neither subst nor normalize.
+
+### Added
+
+- **RULES.md §9 — Systematic tool execution** — Meta-rule: every script/tool created to resolve a problem MUST be run during code quality checks before final answer. Includes enforcement procedure (register in RULES.md + code-quality checklist + run immediately).
+- **code-quality §15 — Python-to-JS quoting check** — Runs `scripts/check-pyjs-quotes.sh` on all 3 JS-heavy files after every `.py` edit. Includes fix reference table.
+- **project-audit Phase 6 — Tool/skill/script registration audit** — Scans `scripts/`, `.opencode/skills/`, and `~/.config/opencode/skills/` and verifies each tool is referenced in RULES.md or code-quality checklist. Unregistered tools get flagged and linked into the quality process.
+
+### Files changed
+
+- `api/dashboard.py` — fixed onchange quoting (line 585)
+- `scripts/check-pyjs-quotes.sh` — whole-script check, `substitute_vars()`, `normalize_handler()`, `looks_truncated()`, `EVENT_RE_SQ`, parameterized `check_with_node()`
+- `RULES.md` — §9 systematic tool execution
+- `.opencode/skills/code-quality/SKILL.md` — §15 pyjs-quote check
+- `~/.config/opencode/skills/project-audit/SKILL.md` — Phase 6 registration audit

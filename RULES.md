@@ -20,9 +20,9 @@ Mécanismes disponibles :
 Après toute modification de `api/` ou `candles/` ou `vibe_engine/` :
 
 ```bash
-# 1. Arrêt des agents + nettoyage
-screen -S agent -X quit 2>/dev/null
-screen -S vibe-agent -X quit 2>/dev/null
+# 1. Arrêt des agents — utilise pkill (pas screen -X quit) pour tuer TOUS les processes
+pkill -f "python.*api/agent.py" 2>/dev/null || true
+pkill -f "python.*api/vibe_agent.py" 2>/dev/null || true
 sleep 1
 rm -f /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
 rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json
@@ -38,10 +38,16 @@ sleep 1
 screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
 sleep 1
 
-# 4. Démarrage serveur
+# 4. Tuer processus résiduel + nettoyer cache
+fuser -k 8001/tcp 2>/dev/null
+sleep 2
+find . -name '__pycache__' -exec rm -rf {} + 2>/dev/null
+find . -name '*.pyc' -delete 2>/dev/null
+
+# 5. Démarrage serveur
 scripts/server.sh start 8001
 
-# 5. Vérification
+# 6. Vérification
 curl -sf http://localhost:8001/api/health > /dev/null || ./scripts/notify.sh error "Server health check failed"
 ./scripts/notify.sh done "Servers restarted"
 ```
@@ -53,6 +59,37 @@ curl -sf http://localhost:8001/api/health > /dev/null || ./scripts/notify.sh err
 - Si un processus root bloque le port cible, `fuser -k` et `lsof -ti` échouent silencieusement. Utiliser `scripts/server.sh list` pour diagnostiquer.
 - **`scripts/server.sh`** est l'outil centralisé : `kill|start|restart|health|list [PORT]`
 - Toujours vérifier `curl -sf http://localhost:PORT/api/health` après démarrage.
+- **⚠️ Stale process trap**: `screen -S candle -X quit` ne tue PAS toujours le processus uvicorn enfant. Le processus orphelin continue de servir sur le port avec l'ancien code. Toujours utiliser `fuser -k PORT/tcp` APRÈS avoir tué la session screen. Vérifier que le port est libre avec `lsof -ti:PORT` avant de redémarrer. Effacer les `__pycache__` après modification.
+- **Best practice**: `fuser -k PORT/tcp && sleep 2 && screen -dmS candle ... && sleep 3 && curl -sf http://localhost:PORT/api/health`
+
+### ⚠️ Zombie screen session accumulation
+
+Each `screen -dmS agent ...` or `screen -S agent -X quit` + `screen -dmS agent` pair can create duplicate screen sessions if the old one wasn't killed properly. Over many server restarts, **dozens of zombie screen sessions** accumulate.
+
+**Detection:**
+```bash
+screen -ls | grep -c agent   # count agent sessions
+screen -ls | grep -c vibe-agent  # count vibe-agent sessions
+```
+
+**Cleanup (use `pkill`, NOT `screen -S ... -X quit`):**
+```bash
+# Kill ALL agent/vibe-agent Python processes
+pkill -f "python.*api/agent.py" 2>/dev/null
+pkill -f "python.*api/vibe_agent.py" 2>/dev/null
+pkill -f "uvicorn" 2>/dev/null
+sleep 2
+# Wipe dead screen sessions
+screen -wipe 2>/dev/null
+# Start fresh
+screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
+screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
+screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
+sleep 3
+curl -sf http://localhost:8001/api/health
+```
+
+**Prevention:** Always use `pkill -f "python.*api/agent.py"` before starting new agent sessions. Never rely on `screen -S agent -X quit` alone — it only kills ONE of potentially many duplicate sessions.
 
 ## 3. Mise à jour des .md
 
@@ -142,7 +179,54 @@ Les clés du registry `custom_types/registry.py` diffèrent de celles des fichie
 
 **Toujours utiliser les clés du registry** dans le code Python (`load_custom_types()`) et les fichiers AI (`ai_generated.json`).
 
-## 9. AI-generated custom types
+## 9. Systematic tool execution before final answer
+
+**Every script or tool created to resolve a problem MUST be run during code quality checks, before the final answer to the user.** This includes (but is not limited to):
+
+- `scripts/check-pyjs-quotes.sh` — Python-to-JS quoting validation (after every `.py` edit)
+- `scripts/chat_e2e.py smoke --port 8001` — E2E smoke test (after any server-side change)
+- Scripts referenced in the `code-quality` skill checklist
+- Any diagnostic tool created ad-hoc during a debugging session
+
+### Why
+
+Tools sitting unused are worthless. A bug is not fixed until the tool that would have caught it passes. Running the tool proves the fix is real and prevents regression.
+
+### Integration
+
+The `code-quality` skill's pre-declaration checklist already includes item 15 (`pyjs-quote check`). Always run the full checklist before declaring a build complete. If a new tool was created during the session, add it to the checklist.
+
+### Enforcement
+
+When a new diagnostic script/tool is created or discovered during a session:
+1. Add a RULES.md entry in this section
+2. Add a corresponding item to the `code-quality` checklist
+3. Run it immediately to verify the current fix
+
+## 10. Subscription cleanup — event listener hygiene
+
+**Every subscription MUST have a matching cleanup.** Never leave dangling event listeners or timers.
+
+### Common patterns
+
+| Subscription | Cleanup |
+|-------------|---------|
+| `chart.subscribeCrosshairMove(handler)` | `chart.unsubscribeCrosshairMove(handler)` |
+| `chart.timeScale().subscribeVisibleTimeRangeChange(handler)` | `chart.timeScale().unsubscribeVisibleTimeRangeChange(handler)` |
+| `element.addEventListener('input', handler)` | `element.removeEventListener('input', handler)` |
+| `new ResizeObserver(callback)` | `observer.disconnect()` |
+| `setTimeout(fn, ms)` | `clearTimeout(timerId)` |
+| `setInterval(fn, ms)` | `clearInterval(intervalId)` |
+| `new EventSource(url)` | `eventSource.close()` |
+
+### Enforcement
+
+- Always store the handler reference (not an anonymous function) when cleanup is needed
+- Use a `_unsub` / `_disconnect` / `_cleanup` field on the data object for pairing
+- When re-initializing a feature (e.g. chart, indicators), remove old subscriptions BEFORE adding new ones
+- The `project-audit` skill Phase 9 scans for subscription/cleanup mismatches
+
+## 11. AI-generated custom types
 
 Types créés par l'agent AI via `config_update` persistent dans :
 - `custom_types/ai_generated.json` (séparé des fichiers pré-populés)
@@ -152,3 +236,27 @@ Types créés par l'agent AI via `config_update` persistent dans :
 Les ordres custom utilisent le Rust state machine (`run_state_machine_order()` dans `vibe_engine`). Signature :
 `(_opens, highs, lows, closes, _volumes, order_type, state_model_json, params_json, entry_bar, entry_price, lookahead)`
 Retourne `[entry_bar, exit_bar, entry_price, exit_price, ret, reason]`.
+
+## 12. End-of-session closeout
+
+When the session ends (user says `exit`, `/exit`, `/quit`, `stop`, `restart`):
+
+### A. Update markdown docs
+- CHRONOLOGIE.md — log the session
+- ERRORS.md — log all bugs fixed
+- ROADMAP.md — check off done items
+- RULES.md — add any new rules created this session
+
+### B. GitHub backup
+Push all changes to `origin main` via the github-backup skill.
+
+### C. Full server shutdown
+Kill ALL remaining processes so nothing is left active:
+```bash
+pkill -f "python.*api/agent.py" 2>/dev/null
+pkill -f "python.*api/vibe_agent.py" 2>/dev/null
+pkill -f "uvicorn" 2>/dev/null
+sleep 1
+screen -wipe 2>/dev/null
+rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/groq_busy.lock 2>/dev/null
+```

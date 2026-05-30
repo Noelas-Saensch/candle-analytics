@@ -78,6 +78,7 @@ def query_candles(
     since: int | None = None,
     start_time: int | None = None,
     end_time: int | None = None,
+    desc: bool = False,
 ) -> list[dict]:
     conn = _get_connection()
     try:
@@ -102,10 +103,13 @@ def query_candles(
             conditions.append("timestamp <= ?")
             params.append(end_time)
 
+        order = "DESC" if desc else "ASC"
+        limit_clause = "" if limit == 0 else " LIMIT ?"
         where = " AND ".join(conditions) if conditions else "1"
+        params_sql = params if limit == 0 else params + [limit]
         cursor = conn.execute(
-            f"SELECT * FROM ohlcv WHERE {where} ORDER BY timestamp ASC LIMIT ?",
-            params + [limit],
+            f"SELECT * FROM ohlcv WHERE {where} ORDER BY timestamp {order}{limit_clause}",
+            params_sql,
         )
         return [dict(row) for row in cursor.fetchall()]
     finally:
@@ -142,6 +146,37 @@ def count_candles(
         cursor = conn.execute(f"SELECT COUNT(*) as cnt FROM ohlcv WHERE {where}", params)
         row = cursor.fetchone()
         return row["cnt"] if row else 0
+    finally:
+        conn.close()
+
+
+def get_candle_range(
+    exchange: str | None = None,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+) -> dict | None:
+    conn = _get_connection()
+    try:
+        conditions = []
+        params = []
+        if exchange:
+            conditions.append("exchange = ?")
+            params.append(exchange)
+        if symbol:
+            conditions.append("symbol = ?")
+            params.append(symbol)
+        if timeframe:
+            conditions.append("timeframe = ?")
+            params.append(timeframe)
+        where = " AND ".join(conditions) if conditions else "1"
+        cursor = conn.execute(
+            f"SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts, COUNT(*) as cnt FROM ohlcv WHERE {where}",
+            params,
+        )
+        row = cursor.fetchone()
+        if row and row["cnt"]:
+            return {"min_ts": row["min_ts"], "max_ts": row["max_ts"], "count": row["cnt"]}
+        return None
     finally:
         conn.close()
 

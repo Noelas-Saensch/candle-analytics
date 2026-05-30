@@ -237,7 +237,100 @@
       "params": {
         "period": 14
       }
-    }
+    },
+    {
+      "name": "tenkan_sen",
+      "type": "ta",
+      "params": {
+        "period": 9
+      }
+    },
+    {
+      "name": "kijun_sen",
+      "type": "ta",
+      "params": {
+        "period": 26
+      }
+    },
+    {
+      "name": "senkou_span_a",
+      "type": "ta",
+      "params": {
+        "period": 26
+      }
+    },
+    {
+      "name": "senkou_span_b",
+      "type": "ta",
+      "params": {
+        "period": 52
+      }
+    },
+    {
+      "name": "chikou_span",
+      "type": "ta",
+      "params": {
+        "period": 26
+      }
+    },
+    {
+      "name": "tenkan_sen",
+      "type": "ta",
+      "params": {
+        "period": 9
+      }
+    },
+    {
+      "name": "kijun_sen",
+      "type": "ta",
+      "params": {
+        "period": 26
+      }
+    },
+    {
+      "name": "senkou_span_a",
+      "type": "ta",
+      "params": {
+        "period": 26
+      }
+    },
+    {
+      "name": "senkou_span_b",
+      "type": "ta",
+      "params": {
+        "period": 52
+      }
+    },
+    {
+      "name": "chikou_span",
+      "type": "ta",
+      "params": {
+        "lag": 26
+      }
+    },
+    {
+      "name": "rsi",
+      "params": {
+        "timeperiod": 14
+      }
+    },
+    {
+      "name": "rsi",
+      "params": {
+        "timeperiod": 14
+      }
+    },
+    {
+      "name": "ichimoku",
+      "params": {
+        "timeperiod_conv": 9,
+        "timeperiod_base": 26,
+        "timeperiod_span": 52
+      }
+    },
+    "ichimoku",
+    "ichimoku",
+    "ichimoku"
   ],
   "conditions": [
     {

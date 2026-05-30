@@ -12,6 +12,7 @@ from api.dashboard import router as dashboard_router
 from api.analyze import router as analyze_router
 from api.strategy_lab import router as strategy_lab_router
 from api.vibe_lab import router as vibe_lab_router
+from api.convert import router as convert_router
 from candles.config import settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ app.include_router(dashboard_router)
 app.include_router(analyze_router)
 app.include_router(strategy_lab_router)
 app.include_router(vibe_lab_router)
+app.include_router(convert_router)
 
 
 @app.get("/api/health")

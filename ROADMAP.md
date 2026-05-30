@@ -82,6 +82,11 @@ Phase 4 ── Advanced Data + ML ───── 🔮 Future
 - [x] **TA indicator overlay** — 13 indicators computed server-side, rendered on LightweightCharts
 - [x] **Indicator customization panel** — color, period, line width per indicator
 - [x] **Separate pane for oscillators** — RSI, MACD, Stoch etc. in own pane via `chart.addPane()`
+- [x] **Unlimited indicator computation** — removed 500-candle limit, uses all stored candles via `limit=0` in `query_candles`
+- [x] **Per-line TV-style settings** — each multi-line indicator member (ichimoku_tenkan, bbands_upper, etc.) has individual color, width, visible toggle
+- [x] **Ichimoku cloud color config** — green/red fill colors with opacity via hex + dropdown, stored as rgba strings
+- [x] **Momentum oscillator zones** — configurable overbought/oversold/midline levels with dashed price lines for RSI, Stoch, Williams %R, CCI, MFI
+- [x] **Time scale always visible** — `#chart-wrapper` CSS layout fix ensures time scale remains visible below all sub-panes
 - [x] **Runs on `.venv/bin/python`** — tous les processus screen utilisent le venv
 - [x] **WebSocket fix** — `wsproto` installé, `/api/ws/strategy-chat` fonctionne
 - [x] **GROQ 429 retry** — 3 tentatives avec backoff dans agent.py
@@ -93,6 +98,32 @@ Phase 4 ── Advanced Data + ML ───── 🔮 Future
 - [x] **Fix type→config_update** — fixer local convertit message en config_update
 - [x] **Ichimoku aliases étendus** — 30+ entrées (japonais, descriptifs, dotted, numériques)
 - [ ] **Fix data.win_rate is undefined** — crash quand Run Search retourne résultats sans win_rate
+
+### Dashboard — Phase 2 🟢
+
+- [x] **Chart settings modal** — gear button opens modal with bull/bear body/wick colors + chart bg, persisted in localStorage
+- [x] **Controls bar** — separate row between header/tabs and indicators, contains gear, exchange/symbol/tf/date, Reg toggle, Update/Fetch
+- [x] **Ichimoku defaults** — Tenkan #4fc3f7 w1, Kijun #4fc3f7 w2, SSA/SSB black w1/w2, cloud green/red 90%, Chikou orange w1
+- [x] **Scale alignment** — all main-pane indicator series use priceScaleId='price'
+- [x] **SSA/SSB forward projection** — extends beyond last candle via time extrapolation
+- [x] **Chikou fix** — uses raw close prices (not rolled+NaN), backward time projection for idx<0
+- [x] **Cloud rAF render** — replaces event-subscription-based Canvas overlay with single rAF loop polling visible range, zero subscription pile-up
+- [x] **Crosshair legend** — shows candle OHLC + indicator values on hover
+- [x] **Chart fills viewport** — css calc(100vh - header - controls-bar) with overflow:hidden
+- [x] **Live SSE retry timer cleanup** — EventSource.onerror timer stored in window._liveRetryTimer, cancelled in stopLive()
+- [x] **Server lifecycle** — server.sh handles kill/start/restart/health without --reload (no zombie processes)
+- [x] **Cloud perf fix** — removed getBoundingClientRect() from drawCloud, replaced rAF polling with subscription+dirty flag, removed O(N*M) fallback loop
+
+### Strategy Converter — Phase 2 🟢
+
+- [x] **Converter page** — `/convert` route with split-panel UI, direction selector (NL→Python, NL→PineScript, PineScript↔Python, NL→Rust)
+- [x] **POST /api/convert** — Groq-powered LLM endpoint with 5 system prompts, retry logic, think-tag stripping
+- [x] **NL → Python** — generates `decide(i, ohlcv)` function using `vibe_engine` indicators
+- [x] **NL → PineScript** — generates TradingView PineScript v5 with proper strategy() syntax
+- [x] **PineScript → Python** — translates `ta.*` calls to `ve.*` equivalents, generates `decide()` function
+- [x] **Python → PineScript** — translates `ve.*` + `decide()` pattern to PineScript v5
+- [x] **NL → Rust** — generates Rust `fn decide()` using `vibe_engine_rs` functions
+- [x] **Smoke test coverage** — `/convert` page HTML/JS/API checks in chat_e2e.py
 
 ### Phase 3 : Live Trading 🔵
 

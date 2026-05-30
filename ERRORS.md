@@ -5,6 +5,59 @@
 
 ---
 
+## 2026-05-30 | Screen sessions | Zombie agent processes accumulate — 60+ duplicate agent screens
+- **Error**: `ps aux | grep agent.py` shows 60 agent processes. Resources wasted, IPC file conflicts, Groq rate limits hit from duplicated work.
+- **Cause**: Each restart via `screen -dmS agent ...` after `screen -S agent -X quit` starts a NEW session, but `screen -S agent -X quit` only kills the FIRST session named "agent". After many restart cycles, duplicate screen sessions accumulate. The actual Python processes also survive because `screen -X quit` doesn't kill orphan children cleanly.
+- **Fix**: Use `pkill -f "python.*api/agent.py"` before starting new agent sessions. This kills ALL Python agent processes by name pattern. Then `screen -wipe` to clear dead screen entries. Documented in RULES.md §2.
+- **Files**: `RULES.md`, `.opencode/skills/session-lifecycle/SKILL.md`
+- **Error**: Chart is laggy, CPUs run hot during idle. Ichimoku cloud redraws waste CPU on every animation frame even when chart is not scrolling.
+- **Cause**: Three independent bottlenecks:
+  1. `drawCloud()` calls `container.getBoundingClientRect()` every redraw — forces synchronous layout reflow.
+  2. rAF loop calls `chart.timeScale().getVisibleLogicalRange()` 60fps and string-formats the result (`toFixed(4) + ',' + toFixed(4)`) even when no scroll/zoom happens — library API call + string allocation every frame.
+  3. When primary `refSeries` fails to convert a point's price to y-coordinate, `drawCloud()` scans ALL `indicatorSeries[name][paneId]` in a nested `for...in` loop — O(N×M) per frame for potentially all points.
+- **Fix**: 
+  1. Cached canvas dimensions from `ResizeObserver.contentRect` into `_ichimokuCloudData._width/_height`. `drawCloud()` reads cached values instead of calling `getBoundingClientRect()`.
+  2. Replaced 60fps `getVisibleLogicalRange()` polling with single `subscribeVisibleTimeRangeChange` that sets `_cloudDirty = true`. rAF loop only checks the boolean `_cloudDirty` — no API calls between redraws.
+  3. Removed fallback loop entirely — points that fail primary conversion are skipped immediately.
+- **Files**: `api/dashboard.py:880-1040`
+
+## 2026-05-30 | api/dashboard.js | EventSource.onerror setTimeout never cancelled — timer pile-up
+- **Error**: `stopLive()` called during symbol/timeframe change closes the EventSource but leaves 30s reconnect timers queued. Repeated tab switches during network issues create unbounded timer pile-up.
+- **Cause**: `startLive()` at line 1258 sets `setTimeout(() => { if (!eventSource) startLive(); }, 30000)` in the `onerror` handler. `stopLive()` only called `eventSource.close()` + `eventSource = null` — the pending `setTimeout` was not cancelled. When the timer fires, `eventSource` is already null (closed by `stopLive()`), so `startLive()` is called again, creating a NEW EventSource that should have been stopped.
+- **Fix**: Stored timer ID in `window._liveRetryTimer`. `stopLive()` calls `clearTimeout(window._liveRetryTimer)`. `startLive()` stores the return value. The `if (!eventSource)` guard still protects against duplicate starts.
+- **Files**: `api/dashboard.py:1213-1261`
+
+## 2026-05-30 | api/dashboard.py | JS SyntaxError — extra `}` in renderIchimokuCloud
+- **Error**: Smoke test failed: `SyntaxError: Unexpected token '}'` in dashboard script block 3.
+- **Cause**: Code replacement in `renderIchimokuCloud` left an extra closing brace `}` on the line after the function's proper close. The old function's closing `}` plus the new replacement's closing `}` produced a dangling brace.
+- **Fix**: Removed the extra `}`. Verified with `node --check`.
+- **Files**: `api/dashboard.py:1040-1041`
+- **Error**: After editing `dashboard.py`/`routes.py` and restarting via `screen -S candle -X quit` + `screen -dmS candle`, the dashboard still shows old behavior (500-candle limit, no per-line settings).
+- **Cause**: `screen -X quit` only detaches/kills the screen session shell, but the uvicorn child process may survive as an orphan (PID 308811). The old process continues serving on port 8001 with old code in memory, while the new screen session's uvicorn process fails to bind (port in use) and exits silently. The health check was passing because the OLD process responded.
+- **Fix**: Always use `fuser -k PORT/tcp` before starting a new uvicorn, not just `screen -X quit`. Verify port is free with `lsof -ti:PORT`. Clear all `__pycache__` before restart.
+- **Files**: `scripts/server.sh`, `RULES.md`, `api/dashboard.py`, `api/routes.py`, `candles/storage/db.py`
+
+## 2026-05-30 | api/dashboard.py | Canvas cloud overlay invisible — z-index + positioning
+- **Error**: Ichimoku cloud fill (canvas overlay between SSA and SSB) not visible on the chart.
+- **Cause**: The `<canvas id="cloudOverlay">` was positioned with `z-index: 10` inside `#chart`, but the chart's internal panes may render at higher z-index or the canvas `top:0;left:0` may misalign when `#chart` is inside a flex container with `flex:1`.
+- **Fix**: Ensure `container.style.position = "relative"` is set, canvas uses `pointer-events: none`, and `z-index: 10`. Also set `#chart-wrapper` to `position: relative` and the canvas to cover the entire wrapper. The canvas is redrawn on each `timeScale().subscribeVisibleTimeRangeChange` callback.
+- **Files**: `api/dashboard.py:820-870`
+
+## 2026-05-30 | api/routes.py + candles/storage/db.py | Compute API returns oldest 500 candles — indicator lines off-screen
+- **Error**: Indicator lines (RSI, Ichimoku) not visible on dashboard. Sub-pane present but no lines plotted.
+- **Cause**: `compute_indicators()` called `query_candles(limit=500)` which uses `ORDER BY timestamp ASC LIMIT 500` — returns the OLDEST 500 candles (Dec 2018). The chart shows ALL 61365 candles (up to May 2026). Indicator series are plotted with 2018 timestamps, far off-screen to the left after `scrollToRealTime()` scrolls to May 2026.
+- **Fix v1**: Added `desc: bool = False` parameter to `query_candles()`. When `desc=True`, uses `ORDER BY timestamp DESC LIMIT ?`. Pass `desc=True` then reverse to get latest 500 candles in chronological order.
+- **Fix v2 (permanent)**: Changed `limit=500` → `limit=0` in `compute_indicators()`. `query_candles()` handles `limit=0` as unlimited (no SQL `LIMIT` clause). Uses `desc=True` + reverse for chronological order. Now computes indicators on ALL stored candles (61365 BTCUSDC 1H).
+- **Files**: `candles/storage/db.py:107-109`, `api/routes.py:1867`
+
+## 2026-05-29 | api/strategy_lab.py | getSearchConfig mixes long+short conditions with AND → 0 matches
+
+- **Error**: Search returns 0 occurrences despite valid conditions. Frontend shows "0 occ — only 0 matches, need 10".
+- **Cause**: `getSearchConfig()` collects ALL conditions from all trade sides (long + short) and merges them with AND logic. When both sides exist (e.g., long: close > ichimoku_tenkan, short: close < ichimoku_tenkan), the AND combination is contradictory and always yields 0 matches.
+- **Fix v1**: Filter conditions by direction. `long_only` → long only, `short_only` → short only, `both` → run two independent searches (long search, then short search), show both results.
+- **Caveat**: Multiple trade cards in the same direction are still ANDed together (e.g., two long trades with different conditions). Each trade card's open+close conditions all go into one big AND group. This requires per-card search splitting to fix.
+- **Files**: `api/strategy_lab.py:1854-1920`
+
 ## 2026-05-29 | api/agent.py | Groq 400 — `response_format json_object` requires "json" in messages
 
 - **Error**: Groq API returns HTTP 400 with json_validate_failed. Error message: "⚠️ Erreur Groq API (400). Consulte les logs de l'agent."

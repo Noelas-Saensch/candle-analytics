@@ -29,8 +29,13 @@ EVENT_ATTRS = (
     'scroll|wheel|contextmenu|dblclick|touch(?:start|end|move)|'
     'cut|copy|paste|select|drag(?:start|end|over|enter|leave|drop))'
 )
+# Matches HTML event attributes with both " and ' delimiters
 EVENT_RE = re.compile(
     r'\b(' + EVENT_ATTRS + r')\s*=\s*"((?:[^"\\]|\\.)*?)"',
+    re.IGNORECASE
+)
+EVENT_RE_SQ = re.compile(
+    r"\b(" + EVENT_ATTRS + r")\s*=\s*'((?:[^'\\]|\\.)*?)'",
     re.IGNORECASE
 )
 
@@ -60,9 +65,46 @@ def extract_triple_strings(filepath):
         yield line_no, raw_content, unescaped
 
 
+def looks_truncated(value, html, end):
+    """Return True if the extracted handler value looks truncated (the HTML
+    attribute regex matched a fragment due to JS string concatenation)."""
+    stripped = value.strip()
+    # If value doesn't end with a balanced JS expression, it's likely truncated
+    if stripped.endswith('+') or stripped.endswith('-') or stripped.endswith('|'):
+        return True
+    if stripped.endswith('(') or stripped.endswith(',') or stripped.endswith('{'):
+        return True
+    # Check if the next non-space char after the match looks like continuation
+    rest = html[end:end+20]
+    rest_stripped = rest.lstrip()
+    if not rest_stripped:
+        return False
+    if rest_stripped[0] in ".,;:)}]":
+        return False  # Natural end
+    # If value contains unbalanced single quotes and the rest continues with
+    # JS-relevant chars, it's truncated
+    if value.count("'") % 2 != 0:
+        if rest_stripped[0].isalnum() or rest_stripped[0] in "'\"+ ":
+            return True
+    return False
+
+
 def find_js_handlers(html):
+    seen = set()
     for m in EVENT_RE.finditer(html):
-        yield m.group(1), m.group(2)
+        key = (m.start(), m.group(1))
+        if key not in seen:
+            seen.add(key)
+            value = m.group(2)
+            if not looks_truncated(value, html, m.end()):
+                yield m.group(1), value
+    for m in EVENT_RE_SQ.finditer(html):
+        key = (m.start(), m.group(1))
+        if key not in seen:
+            seen.add(key)
+            value = m.group(2)
+            if not looks_truncated(value, html, m.end()):
+                yield m.group(1), value
 
 
 def check_suspect_quoting(raw, line_offset, filepath):
@@ -85,16 +127,13 @@ def check_empty_quotes(raw, line_offset, filepath):
     return issues
 
 
+SIMPLE_VAR_RE = re.compile(r'\+\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\+')
+
+
 def is_simple_js(code):
     """Return True if code is a self-contained JS expression (no variable
     references, no template expressions, no backslash-at-expression-level)."""
     if re.search(r"(?<!\$)\$\{", code):
-        return False
-    if ' + ' in code and re.search(r"'\+|' \+", code):
-        return False
-    if re.search(r'(?<!\\)\\\'(?!\\)', code):
-        return False
-    if re.search(r'(?<!\\)\\\"(?!\\)', code):
         return False
     if re.search(r'\bvar\s+|\blet\s+|\bconst\s+', code):
         return False
@@ -103,11 +142,45 @@ def is_simple_js(code):
     return True
 
 
-def check_with_node(js_code):
+def substitute_vars(js_code):
+    """Replace simple variable references in string concat with dummy value
+    so node can validate the expression syntax."""
+    return SIMPLE_VAR_RE.sub('+ "X" +', js_code)
+
+
+def normalize_handler(js_code):
+    """Normalize extracted event handler code for node syntax checking.
+
+    HTML event handler attributes (onclick="...") are processed by the browser's
+    HTML parser before the JavaScript engine sees them. Backslash-quote pairs
+    like \' and \" in the attribute value are reduced to just ' and " by the
+    HTML parser, making them valid JS. For syntax-checking purposes, we strip
+    backslashes before quotes to match what the browser actually evaluates."""
+    # \' -> ' and \" -> " (HTML parser processes these before JS)
+    code = re.sub(r"\\(['\"])", r'\1', js_code)
+    return code
+
+
+def check_with_node(js_code, allow_subst=True, allow_normalize=True):
+    """Check JS code syntax with node --check.
+
+    Args:
+        js_code: JS code to check.
+        allow_subst: If True, substitute concatenated variables with "X".
+        allow_normalize: If True, strip backslash-quote pairs that the HTML
+            parser would consume before JS evaluation.
+    """
     if not shutil.which('node'):
         return None, None
     if not is_simple_js(js_code):
-        return None, None
+        if not allow_subst:
+            return None, None
+        substituted = substitute_vars(js_code)
+        if substituted == js_code:
+            return None, None  # Can't simplify — skip
+        js_code = substituted
+    if allow_normalize:
+        js_code = normalize_handler(js_code)
     wrapped = '"use strict";\nvoid function() { ' + js_code + '; };\n'
     tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False)
     try:
@@ -167,6 +240,20 @@ def main():
         for line_offset, raw_content, unescaped in extract_triple_strings(fpath):
             file_errors.extend(check_suspect_quoting(raw_content, line_offset, fpath))
             file_errors.extend(check_empty_quotes(raw_content, line_offset, fpath))
+
+            # Whole-script JS syntax check (catches issues in concatenated handlers)
+            scripts = re.findall(
+                r'<script[^>]*>(.*?)</script>', unescaped, re.DOTALL
+            )
+            combined_js = '\n'.join(s.strip() for s in scripts if s.strip())
+            if combined_js.strip():
+                whole_ok, whole_err = check_with_node(combined_js, allow_subst=False, allow_normalize=False)
+                if whole_ok is False:
+                    file_errors.append((
+                        fpath, line_offset,
+                        'script block JS syntax error: ' + (whole_err or '')
+                    ))
+
             for attr, js_code in find_js_handlers(unescaped):
                 js_count += 1
                 ok, err = check_with_node(js_code)
