@@ -4,8 +4,8 @@ Vibe Lab LLM Agent — generates strategy code via chat conversation.
 Watches /tmp/vibe_chat_req_*.json for new messages, calls Groq API,
 and writes response files back.
 
-Run in a screen session:
-  screen -dmS vibe-agent .venv/bin/python api/vibe_agent.py
+Run in a screen session (ALWAYS kill duplicates first):
+  scripts/kill-agents.sh && screen -dmS vibe-agent .venv/bin/python api/vibe_agent.py
 """
 
 from dotenv import load_dotenv

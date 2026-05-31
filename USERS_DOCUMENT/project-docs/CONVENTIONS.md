@@ -45,3 +45,6 @@ Restart ALL 3 on new session start (session-lifecycle skill step 3).
 - Never destroy API keys — comment them out
 - Secrets in `.env` via `load_dotenv()`
 - ERRORS.md after every bug fix, ROADMAP + CHRONOLOGIE after every session
+- **Never use `pkill -f`** — it HANGs because the pattern matches the pkill command itself.
+- **Never use `screen -S agent -X quit`** — it only kills the FIRST duplicate session.
+- **Always use `scripts/kill-agents.sh`** — kills ALL matching processes by PID (safe), detects duplicates with `--check`.

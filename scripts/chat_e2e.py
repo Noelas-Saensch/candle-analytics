@@ -129,7 +129,7 @@ def _check_dashboard_html(html, errors):
     js_globals = [
         "chart = LightweightCharts.createChart",
         "candleSeries = chart.addSeries",
-        "volumeSeries = chart.addSeries",
+        "name: \"volume\"",
         "indicatorSeries = {}",
         "function initChart",
         "function renderIndicatorSeries",
@@ -290,22 +290,22 @@ def restart_servers(port=8001):
     """Kill zombie processes, clean IPC, start server, wait for health."""
     print("  🔄 Restarting servers...")
 
-    # Force-kill anything on the port (handles root-owned, zombie, etc.)
+    # Force-kill ALL duplicates using centralized script (handles any number)
     SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+    kill_agents_script = os.path.join(SCRIPTS_DIR, "kill-agents.sh")
     server_script = os.path.join(SCRIPTS_DIR, "server.sh")
-    if os.path.exists(server_script):
-        subprocess.run(["bash", server_script, "kill", str(port)], capture_output=True, timeout=10)
+    if os.path.exists(kill_agents_script):
+        subprocess.run(["bash", kill_agents_script, "--all"], capture_output=True, timeout=10)
     else:
-        # Fallback: direct kill
-        subprocess.run(["fuser", "-k", f"{port}/tcp"], capture_output=True, timeout=5)
+        # Fallback: direct kill (safe method, no pkill -f)
         subprocess.run(["fuser", "-k", f"{port}/tcp"], capture_output=True, timeout=5)
         time.sleep(1)
         for s in ["agent", "vibe-agent", "candle"]:
             subprocess.run(["screen", "-S", s, "-X", "quit"], capture_output=True, timeout=5)
+        time.sleep(1)
+        subprocess.run("rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json", shell=True, timeout=5)
 
     time.sleep(1)
-    subprocess.run("rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json", shell=True, timeout=5)
-
     base = "/home/anymous/PROJETS/candle-analytics"
     subprocess.run(["screen", "-dmS", "agent", "bash", "-c",
                     f"cd {base} && .venv/bin/python api/agent.py"], timeout=10)

@@ -104,14 +104,9 @@ If any match, redact immediately.
 ```bash
 ALL_OK=true
 
-# Kill old sessions
-screen -S agent -X quit 2>/dev/null
-screen -S vibe-agent -X quit 2>/dev/null
-screen -S candle -X quit 2>/dev/null
+# Kill ALL old agents + servers (handles any number of duplicates — unlike screen -X quit)
+scripts/kill-agents.sh --all
 sleep 1
-
-# Clean stale IPC files
-rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
 
 # Start Strategy Lab agent
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py' || { echo "FAIL: agent screen"; ALL_OK=false; }
@@ -131,10 +126,12 @@ else
   ALL_OK=false
 fi
 
-# Report all 3
-echo "agent: $(ps aux | grep 'api/agent.py' | grep -v grep | wc -l) running"
-echo "vibe-agent: $(ps aux | grep 'api/vibe_agent.py' | grep -v grep | wc -l) running"
-echo "candle: $(ps aux | grep 'uvicorn' | grep -v grep | wc -l) running"
+# Report all 3 — warn if duplicates found (exclude SCREEN wrapper)
+agent_count=$(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l)
+vibe_count=$(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l)
+echo "agent: ${agent_count} running $([ "$agent_count" -gt 1 ] && echo '⚠️ DUPLICATES!')"
+echo "vibe-agent: ${vibe_count} running $([ "$vibe_count" -gt 1 ] && echo '⚠️ DUPLICATES!')"
+echo "candle: $(ps aux | grep '[u]vicorn' | wc -l) running"
 echo ""
 echo "## Build complete — $([ "$ALL_OK" = true ] && echo '✅ all restarted' || echo '❌ some failed')"
 ```
@@ -155,8 +152,8 @@ test -f ~/.config/opencode/skills/strategy-designer/SKILL.md || echo "FAIL: stra
 ### 13. LLM agent processes running
 
 ```bash
-ps aux | grep "api/agent.py" | grep -v grep || echo "FAIL: agent (Strategy Lab) not running"
-ps aux | grep "api/vibe_agent.py" | grep -v grep || echo "FAIL: vibe-agent (Vibe Lab) not running"
+ps aux | grep "[a]pi/agent.py" || echo "FAIL: agent (Strategy Lab) not running"
+ps aux | grep "[a]pi/vibe_agent.py" || echo "FAIL: vibe-agent (Vibe Lab) not running"
 ```
 
 ### 14. Groq API key configured
@@ -249,7 +246,23 @@ grep -rn "\.unsubscribe\|removeEventListener\|\.disconnect\|\.close()\|clearTime
 
 Every subscription must have a matching cleanup. Reference RULES.md §10 for the pattern.
 
-### 18. New page / route registration check
+### 19. Stale agent process check
+
+Run at session start AND after any server restart cycle:
+
+```bash
+# Detect duplicate agent processes (known memory leak pattern)
+# Must exclude SCREEN wrapper (its cmdline also contains api/agent.py)
+agent_count=$(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l)
+vibe_count=$(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l)
+screen_count=$(screen -ls 2>/dev/null | grep -cE 'agent|vibe-agent' || echo 0)
+echo "agent Python processes: ${agent_count} (expected: 1)  vibe-agent: ${vibe_count} (expected: 1)  screen sessions: ${screen_count} (expected: 2)"
+if [ "$agent_count" -gt 1 ] || [ "$vibe_count" -gt 1 ] || [ "$screen_count" -gt 2 ]; then
+  echo "⚠️  DUPLICATE AGENTS DETECTED — run scripts/kill-agents.sh --all immediately"
+fi
+```
+
+### 20. New page / route registration check
 
 When adding a new page route:
 - [ ] Router registered in `api/main.py`

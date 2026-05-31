@@ -9,7 +9,7 @@ HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Candle Analytics</title>
-<script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js';document.head.appendChild(s)"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
@@ -35,10 +35,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .controls-bar .sep { width: 1px; height: 22px; background: #0f3460; margin: 0 3px; }
 .gear-btn { background: transparent; color: #888; border: 1px solid #1a3a6b; border-radius: 3px; padding: 4px 8px; font-size: 14px; cursor: pointer; line-height: 1; }
 .gear-btn:hover { color: #e0e0e0; border-color: #e94560; }
-#chart-wrapper { position: relative; width: 100%; height: calc(100vh - 46px - 42px); flex: 1; display: flex; flex-direction: column; }
-#chart { width: 100%; flex: 1; }
-#auto-scale-btn { position: absolute; top: 8px; right: 12px; z-index: 10; background: #16213e; color: #888; border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; font-size: 16px; cursor: pointer; line-height: 1; }
-#auto-scale-btn:hover { color: #e0e0e0; border-color: #e94560; }
+#chart-wrapper { position: relative; width: 100%; height: calc(100vh - 46px - 42px - 25px); flex: 1; display: flex; flex-direction: column; }
+#chart { width: 100%; flex: 1; min-height: 120px; }
+#go-latest-btn { position:absolute;top:8px;right:12px;z-index:10;background:#16213e;color:#888;border:1px solid #0f3460;border-radius:4px;padding:4px 8px;font-size:14px;cursor:pointer;line-height:1; }
+#go-latest-btn:hover { color:#e0e0e0; border-color:#e94560; }
+#load-older-btn { position:absolute;top:50%;left:4px;z-index:10;transform:translateY(-50%);background:#16213e;color:#888;border:1px solid #0f3460;border-radius:4px;padding:4px 8px;font-size:14px;cursor:pointer;line-height:1; }
+#load-older-btn:hover { color:#e0e0e0; border-color:#e94560; }
 #status { position: absolute; bottom: 8px; left: 12px; z-index: 10; font-size: 11px; color: #555; }
 #empty { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #888; z-index: 10; }
 #empty h2 { font-size: 20px; margin-bottom: 8px; color: #e94560; }
@@ -239,6 +241,14 @@ tr:hover { background: #16213e; }
   <div class="settings-row">
     <label>Chart bg <input type="color" id="cfg_chartBg" value="#f5f5f5"></label>
   </div>
+  <h4 style="margin:12px 0 4px;color:#888">Crosshair</h4>
+  <div class="settings-row">
+    <label><input type="checkbox" id="cfg_crosshairLines"> Dotted value lines on hover</label>
+  </div>
+  <h4 style="margin:12px 0 4px;color:#888">Data</h4>
+  <div class="settings-row">
+    <label>Max bars <input type="number" id="cfg_maxBars" value="5000" min="1000" max="99999" step="500"></label>
+  </div>
   <div class="settings-row">
     <button class="btn" onclick="resetChartSettings()">Reset defaults</button>
     <button class="btn btn-primary" onclick="applyChartSettings()">Apply</button>
@@ -256,7 +266,8 @@ tr:hover { background: #16213e; }
   <div id="chart-wrapper">
     <div id="chart"></div>
     <div id="crosshairLegend"></div>
-    <button id="auto-scale-btn" title="Auto-fit chart scale" onclick="autoScale()">&#x2921;</button>
+    <button id="go-latest-btn" title="Scroll to latest candle (resets zoom axes)" onclick="goToLatest()">&#x25B6;</button>
+    <button id="load-older-btn" title="Load older candles" onclick="loadOlderCandles()" style="display:none">&#x21A9;</button>
     <div id="status"></div>
     <div id="loading">loading candles...</div>
     <div id="empty">
@@ -264,39 +275,14 @@ tr:hover { background: #16213e; }
       <p>No candles for <span id="emptyKey">...</span></p>
       <button onclick="fetchAllData()">Fetch all</button>
     </div>
+    <div id="init-error" style="display:none;position:fixed;top:0;left:0;right:0;background:#e94560;color:#fff;padding:8px 16px;font-size:13px;z-index:999;text-align:center">
+      <span id="init-error-msg">The dashboard failed to initialize.</span>
+      <button onclick="this.parentElement.style.display='none'" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5);padding:2px 12px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:12px">Dismiss</button>
+      <button onclick="location.reload()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.5);padding:2px 12px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:6px">Reload</button>
+    </div>
   </div>
 </div>
 
-<div id="analyze-view" class="view">
-  <div class="controls" style="gap:8px;flex-wrap:wrap;padding:8px 0" id="mcontrols">
-    <label style="color:#888;font-size:11px">MAX LAST BAR</label>
-    <input type="number" id="maxBars" value="5000" min="100" step="100" style="width:80px;background:#0f3460;color:#e0e0e0;border:1px solid #1a3a6b;padding:4px 6px;border-radius:4px;font-size:12px">
-    <span class="sep"></span>
-    <span style="color:#888;font-size:11px">metrics:</span>
-    <label class="mtog" data-m="oc"><input type="checkbox"> OC%</label>
-    <label class="mtog" data-m="oh"><input type="checkbox" checked> OH%</label>
-    <label class="mtog" data-m="ol"><input type="checkbox" checked> OL%</label>
-    <label class="mtog" data-m="hl"><input type="checkbox" checked> HL%</label>
-    <label class="mtog" data-m="hc"><input type="checkbox" checked> HC%</label>
-    <label class="mtog" data-m="lc"><input type="checkbox" checked> LC%</label>
-    <label class="mtog" data-m="vol"><input type="checkbox"> Vol%</label>
-  </div>
-  <div id="astatus" style="color:#888;font-size:12px;margin-bottom:6px"></div>
-  <div id="iaStatus" style="color:#888;font-size:12px;margin-bottom:4px"></div>
-  <div id="infoArray" style="overflow-x:auto;margin-bottom:12px"></div>
-  <div id="chart-stack" style="margin-top:12px"></div>
-</div>
-
-<div id="rawdata-view" class="view">
-  <div id="astatus-r" style="color:#888;font-size:12px;margin-bottom:6px"></div>
-  <div id="analyze-table-wrap" style="overflow-x:auto;max-height:calc(100vh - 120px)">
-    <table id="atable">
-      <thead id="atheed"></thead>
-      <tbody id="atbody"></tbody>
-    </table>
-  </div>
-  <div id="afooter" style="margin-top:4px;font-size:11px;color:#555"></div>
-</div>
 
 
 <script>
@@ -332,7 +318,7 @@ const startDateEl = document.getElementById('startDate');
 const endDateEl = document.getElementById('endDate');
 const statusEl = document.getElementById('status');
 
-let chart, candleSeries, volumeSeries, regSeries = null;
+let chart, candleSeries, regSeries = null;
 let eventSource = null;
 let lastCandleTime = 0;
 
@@ -363,6 +349,7 @@ function toggleRegression() {
 
 // --- Chart settings (candle colors + bg) ---
 var CHART_SETTINGS_KEY = 'candle_analytics_chart_settings';
+var INDICATOR_SETTINGS_KEY = 'candle_analytics_indicator_settings';
 
 var CHART_SETTINGS_DEFAULTS = {
   bullBody: '#808080',
@@ -370,6 +357,8 @@ var CHART_SETTINGS_DEFAULTS = {
   bullWick: '#808080',
   bearWick: '#2d2d2d',
   chartBg: '#f5f5f5',
+  crosshairLines: false,
+  maxBars: 5000,
 };
 
 function loadChartSettings() {
@@ -391,6 +380,8 @@ function applyChartSettings() {
     bullWick: document.getElementById('cfg_bullWick').value,
     bearWick: document.getElementById('cfg_bearWick').value,
     chartBg: document.getElementById('cfg_chartBg').value,
+    crosshairLines: document.getElementById('cfg_crosshairLines').checked,
+    maxBars: parseInt(document.getElementById('cfg_maxBars').value) || 5000,
   };
   saveChartSettings(s);
   if (candleSeries) {
@@ -402,6 +393,18 @@ function applyChartSettings() {
   }
   if (chart) {
     chart.applyOptions({ layout: { background: { color: s.chartBg } } });
+    chart.applyOptions({
+      crosshair: {
+        vertLine: { visible: s.crosshairLines, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
+        horzLine: { visible: s.crosshairLines, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
+      },
+    });
+  }
+  // Update maxBars and reload chart
+  var newMaxBars = s.maxBars;
+  if (newMaxBars !== _maxBars) {
+    _maxBars = newMaxBars;
+    loadChart();
   }
   closeSettings();
 }
@@ -413,6 +416,8 @@ function resetChartSettings() {
   document.getElementById('cfg_bullWick').value = d.bullWick;
   document.getElementById('cfg_bearWick').value = d.bearWick;
   document.getElementById('cfg_chartBg').value = d.chartBg;
+  document.getElementById('cfg_crosshairLines').checked = d.crosshairLines;
+  document.getElementById('cfg_maxBars').value = d.maxBars;
   applyChartSettings();
 }
 
@@ -423,6 +428,8 @@ function toggleSettings() {
   document.getElementById('cfg_bullWick').value = s.bullWick;
   document.getElementById('cfg_bearWick').value = s.bearWick;
   document.getElementById('cfg_chartBg').value = s.chartBg;
+  document.getElementById('cfg_crosshairLines').checked = s.crosshairLines;
+  document.getElementById('cfg_maxBars').value = s.maxBars;
   document.getElementById('settingsOverlay').classList.add('show');
   document.getElementById('settingsModal').classList.add('show');
 }
@@ -430,6 +437,27 @@ function toggleSettings() {
 function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('show');
   document.getElementById('settingsModal').classList.remove('show');
+}
+
+function saveIndicatorSettings() {
+  try {
+    var data = [];
+    for (var i = 0; i < activeIndicators.length; i++) {
+      var ind = activeIndicators[i];
+      data.push({ name: ind.name, label: ind.label, params: ind.params, paneMode: ind.paneMode });
+    }
+    localStorage.setItem(INDICATOR_SETTINGS_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadIndicatorSettings() {
+  try {
+    var raw = localStorage.getItem(INDICATOR_SETTINGS_KEY);
+    if (!raw) return null;
+    var data = JSON.parse(raw);
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data;
+  } catch(e) { return null; }
 }
 
 // --- Indicator overlay management ---
@@ -440,28 +468,29 @@ var nextPaneId = 1;
 
 var INDICATOR_CATALOG = {
   "Cloud": [
-    { name: "ichimoku", label: "Ichimoku Cloud", params: { tenkan: 9, kijun: 26, senkou: 52 }, defaults: { tenkan: 9, kijun: 26, senkou: 52, color: "#26a69a" }, paneMode: "main" },
+    { name: "ichimoku", label: "Ichimoku Cloud", params: { tenkan: 9, kijun: 26, senkou: 52 }, defaults: { tenkan: 9, kijun: 26, senkou: 52, color: "#26a69a", priceLabels: false }, paneMode: "main" },
   ],
   "Trend": [
-    { name: "sma", label: "SMA", params: { period: 20 }, defaults: { period: 20, color: "#26a69a" }, paneMode: "main" },
-    { name: "ema", label: "EMA", params: { period: 20 }, defaults: { period: 20, color: "#e94560" }, paneMode: "main" },
-    { name: "bbands", label: "Bollinger Bands", params: { period: 20, stddev: 2 }, defaults: { period: 20, stddev: 2, color: "#e94560" }, paneMode: "main" },
-    { name: "vwap", label: "VWAP", params: {}, defaults: { color: "#f9a825" }, paneMode: "main" },
+    { name: "sma", label: "SMA", params: { period: 20 }, defaults: { period: 20, color: "#26a69a", priceLabels: false }, paneMode: "main" },
+    { name: "ema", label: "EMA", params: { period: 20 }, defaults: { period: 20, color: "#e94560", priceLabels: false }, paneMode: "main" },
+    { name: "bbands", label: "Bollinger Bands", params: { period: 20, stddev: 2 }, defaults: { period: 20, stddev: 2, color: "#e94560", priceLabels: false }, paneMode: "main" },
+    { name: "vwap", label: "VWAP", params: {}, defaults: { color: "#f9a825", priceLabels: false }, paneMode: "main" },
   ],
   "Oscillators": [
-    { name: "rsi", label: "RSI", params: { period: 14 }, defaults: { period: 14, color: "#ab47bc" }, paneMode: "shared" },
-    { name: "stoch", label: "Stochastic", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" }, paneMode: "shared" },
-    { name: "macd", label: "MACD", params: { fast: 12, slow: 26, signal: 9 }, defaults: { fast: 12, slow: 26, signal: 9, color: "#26a69a" }, paneMode: "shared" },
-    { name: "cci", label: "CCI", params: { period: 20 }, defaults: { period: 20, color: "#7b1fa2" }, paneMode: "shared" },
-    { name: "mfi", label: "MFI", params: { period: 14 }, defaults: { period: 14, color: "#26a69a" }, paneMode: "shared" },
-    { name: "williams_r", label: "Williams %R", params: { period: 14 }, defaults: { period: 14, color: "#ef5350" }, paneMode: "shared" },
-    { name: "adx", label: "ADX", params: { period: 14 }, defaults: { period: 14, color: "#f9a825" }, paneMode: "shared" },
+    { name: "rsi", label: "RSI", params: { period: 14 }, defaults: { period: 14, color: "#ab47bc", priceLabels: false }, paneMode: "shared" },
+    { name: "stoch", label: "Stochastic", params: { period: 14 }, defaults: { period: 14, color: "#26a69a", priceLabels: false }, paneMode: "shared" },
+    { name: "macd", label: "MACD", params: { fast: 12, slow: 26, signal: 9 }, defaults: { fast: 12, slow: 26, signal: 9, color: "#26a69a", priceLabels: false }, paneMode: "shared" },
+    { name: "cci", label: "CCI", params: { period: 20 }, defaults: { period: 20, color: "#7b1fa2", priceLabels: false }, paneMode: "shared" },
+    { name: "mfi", label: "MFI", params: { period: 14 }, defaults: { period: 14, color: "#26a69a", priceLabels: false }, paneMode: "shared" },
+    { name: "williams_r", label: "Williams %R", params: { period: 14 }, defaults: { period: 14, color: "#ef5350", priceLabels: false }, paneMode: "shared" },
+    { name: "adx", label: "ADX", params: { period: 14 }, defaults: { period: 14, color: "#f9a825", priceLabels: false }, paneMode: "shared" },
   ],
   "Volatility": [
-    { name: "atr", label: "ATR", params: { period: 14 }, defaults: { period: 14, color: "#ff7043" }, paneMode: "shared" },
+    { name: "atr", label: "ATR", params: { period: 14 }, defaults: { period: 14, color: "#ff7043", priceLabels: false }, paneMode: "shared" },
   ],
   "Volume": [
-    { name: "obv", label: "OBV", params: {}, defaults: { color: "#42a5f5" }, paneMode: "dedicated" },
+    { name: "volume", label: "Volume", params: {}, defaults: { color: "#808080" }, paneMode: "main" },
+    { name: "obv", label: "OBV", params: {}, defaults: { color: "#42a5f5", priceLabels: false }, paneMode: "dedicated" },
   ],
 };
 
@@ -473,18 +502,20 @@ var INDICATOR_LINES = {
     defaults: {
       "ichimoku_tenkan": { color: "#4fc3f7", width: 1, visible: true, label: "Tenkan" },
       "ichimoku_kijun": { color: "#4fc3f7", width: 2, visible: true, label: "Kijun" },
-      "ichimoku_senkou_a": { color: "#000000", width: 1, visible: true, label: "Senkou A" },
-      "ichimoku_senkou_b": { color: "#000000", width: 2, visible: true, label: "Senkou B" },
+      "ichimoku_senkou_a": { color: "#26a69a", width: 1, visible: true, label: "Senkou A" },
+      "ichimoku_senkou_b": { color: "#ef5350", width: 2, visible: true, label: "Senkou B" },
       "ichimoku_chikou": { color: "#ff9800", width: 1, visible: true, label: "Chikou" },
-      "cloud": { green: "rgba(38,166,154,0.9)", red: "rgba(239,83,80,0.9)" },
+      "cloud": { green: "#26a69a", red: "#ef5350", opacity: 0.9 },
     },
   },
   "bbands": {
     members: ["bbands_upper", "bbands_middle", "bbands_lower"],
+    cloud: true,
     defaults: {
       "bbands_upper": { color: "#e94560", width: 1, visible: true, label: "Upper" },
       "bbands_middle": { color: "#e94560", width: 2, visible: true, label: "Middle" },
       "bbands_lower": { color: "#e94560", width: 1, visible: true, label: "Lower" },
+      "cloud": { color: "#e94560", opacity: 0.1 },
     },
   },
   "macd": {
@@ -516,11 +547,11 @@ var INDICATOR_LINES = {
 
 // Zone defaults for momentum oscillators
 var INDICATOR_ZONES = {
-  "rsi": { levels: [{ value: 70, color: "#ef5350", label: "Overbought" }, { value: 50, color: "#888", label: "Mid" }, { value: 30, color: "#26a69a", label: "Oversold" }] },
-  "stoch": { levels: [{ value: 80, color: "#ef5350", label: "Overbought" }, { value: 50, color: "#888", label: "Mid" }, { value: 20, color: "#26a69a", label: "Oversold" }] },
-  "williams_r": { levels: [{ value: -20, color: "#ef5350", label: "Overbought" }, { value: -50, color: "#888", label: "Mid" }, { value: -80, color: "#26a69a", label: "Oversold" }] },
-  "cci": { levels: [{ value: 100, color: "#ef5350", label: "Overbought" }, { value: 0, color: "#888", label: "Mid" }, { value: -100, color: "#26a69a", label: "Oversold" }] },
-  "mfi": { levels: [{ value: 80, color: "#ef5350", label: "Overbought" }, { value: 50, color: "#888", label: "Mid" }, { value: 20, color: "#26a69a", label: "Oversold" }] },
+  "rsi": { levels: [{ value: 70, color: "#ef5350", label: "Overbought", width: 1 }, { value: 50, color: "#888", label: "Mid", width: 1 }, { value: 30, color: "#26a69a", label: "Oversold", width: 1 }] },
+  "stoch": { levels: [{ value: 80, color: "#ef5350", label: "Overbought", width: 1 }, { value: 50, color: "#888", label: "Mid", width: 1 }, { value: 20, color: "#26a69a", label: "Oversold", width: 1 }] },
+  "williams_r": { levels: [{ value: -20, color: "#ef5350", label: "Overbought", width: 1 }, { value: -50, color: "#888", label: "Mid", width: 1 }, { value: -80, color: "#26a69a", label: "Oversold", width: 1 }] },
+  "cci": { levels: [{ value: 100, color: "#ef5350", label: "Overbought", width: 1 }, { value: 0, color: "#888", label: "Mid", width: 1 }, { value: -100, color: "#26a69a", label: "Oversold", width: 1 }] },
+  "mfi": { levels: [{ value: 80, color: "#ef5350", label: "Overbought", width: 1 }, { value: 50, color: "#888", label: "Mid", width: 1 }, { value: 20, color: "#26a69a", label: "Oversold", width: 1 }] },
 };
 
 function showIndMenu() {
@@ -562,8 +593,8 @@ function initLineSettings(name) {
     lines[member] = { color: def.color, width: def.width || 2, visible: def.visible !== false, label: def.label || member };
   }
   if (lineCfg.cloud) {
-    var cdef = (lineCfg.defaults && lineCfg.defaults.cloud) || { green: "rgba(38,166,154,0.2)", red: "rgba(239,83,80,0.2)" };
-    lines.cloud = { green: cdef.green, red: cdef.red };
+    var cdef = (lineCfg.defaults && lineCfg.defaults.cloud) || { green: "#26a69a", red: "#ef5350", opacity: 0.2 };
+    lines.cloud = { green: cdef.green, red: cdef.red, opacity: cdef.opacity || 0.2 };
   }
   return lines;
 }
@@ -574,7 +605,7 @@ function initZoneSettings(name) {
   var zones = {};
   for (var z = 0; z < zdef.levels.length; z++) {
     var lv = zdef.levels[z];
-    zones[lv.label] = { value: lv.value, color: lv.color, label: lv.label, visible: true };
+    zones[lv.label] = { value: lv.value, color: lv.color, label: lv.label, visible: true, width: lv.width || 1 };
   }
   return zones;
 }
@@ -686,33 +717,50 @@ function openIndicatorConfig(idx) {
       var lc = ls.color || def.color || "#26a69a";
       var lw = ls.width || def.width || 2;
       var lv = ls.visible !== false;
+      var lm = ls.crosshair === true;
       var ll = def.label || member;
-      html += '<div class="line-section">';
+      html += '<div class="line-section" id="icfg_line_' + member + '">';
       html += '<h4>' + ll + '</h4>';
       html += '<div class="line-row">';
-      html += '<label><input type="checkbox" id="icfg_vis_' + member + '" ' + (lv ? 'checked' : '') + ' onchange="document.getElementById(' + "'icfg_line_" + member + "'" + ').style.opacity=this.checked?1:0.3"> Show</label>';
+      html += '<label><input type="checkbox" id="icfg_vis_' + member + '" ' + (lv ? 'checked' : '') + ' onchange="var el=document.getElementById(' + "'icfg_line_" + member + "'" + ');if(el)el.style.opacity=this.checked?1:0.3"> Show</label>';
       html += '<label>Color <input type="color" id="icfg_color_' + member + '" value="' + lc + '"></label>';
       html += '<label>Width <select id="icfg_width_' + member + '">';
       for (var wi = 1; wi <= 4; wi++) {
         html += '<option value="' + wi + '"' + (lw == wi ? ' selected' : '') + '>' + wi + '</option>';
       }
       html += '</select></label>';
+      html += '<label><input type="checkbox" id="icfg_crosshair_' + member + '" ' + (lm ? 'checked' : '') + '> Dotted</label>';
       html += '</div></div>';
     }
     // Cloud settings
     if (lineCfg.cloud) {
       var cs = (ind.params.lines && ind.params.lines.cloud) || {};
       var cdef = (lineCfg.defaults && lineCfg.defaults.cloud) || {};
-      var cg = cs.green || cdef.green || "rgba(38,166,154,0.2)";
-      var cr = cs.red || cdef.red || "rgba(239,83,80,0.2)";
+      var cg = cs.green || cdef.green || "#26a69a";
+      var cr = cs.red || cdef.red || "#ef5350";
+      var co = (cs.opacity !== undefined ? cs.opacity : (cdef.opacity !== undefined ? cdef.opacity : 0.2));
       html += '<div class="line-section">';
       html += '<h4>Cloud Fill</h4>';
       html += '<div class="line-row">';
-      html += '<label>Bull <input type="color" id="icfg_cloud_green" value="' + cg.replace(/[^#a-fA-F0-9]/g,"").slice(0,7) + '" title="Green cloud color"></label>';
-      html += '<label>Bear <input type="color" id="icfg_cloud_red" value="' + cr.replace(/[^#a-fA-F0-9]/g,"").slice(0,7) + '" title="Red cloud color"></label>';
-      html += '<label>Opacity <select id="icfg_cloud_opacity"><option value="0.1">10%</option><option value="0.15">15%</option><option value="0.2" selected>20%</option><option value="0.3">30%</option><option value="0.4">40%</option><option value="0.5">50%</option></select></label>';
+      html += '<label>Bull <input type="color" id="icfg_cloud_green" value="' + cg + '" title="Green cloud color"></label>';
+      html += '<label>Bear <input type="color" id="icfg_cloud_red" value="' + cr + '" title="Red cloud color"></label>';
+      html += '<label>Opacity <select id="icfg_cloud_opacity">';
+      var opts = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5];
+      for (var oi = 0; oi < opts.length; oi++) {
+        html += '<option value="' + opts[oi] + '"' + (Math.abs(co - opts[oi]) < 0.01 ? ' selected' : '') + '>' + Math.round(opts[oi] * 100) + '%</option>';
+      }
+      html += '</select></label>';
       html += '</div></div>';
     }
+  }
+
+  // ── Price labels toggle ──
+  if (ind.name !== "volume") {
+    var pl = ind.params.priceLabels !== false;
+    html += '<hr class="section-divider">';
+    html += '<div class="line-section"><h4>Price Labels</h4><div class="line-row">';
+    html += '<label><input type="checkbox" id="icfg_priceLabels" ' + (pl ? 'checked' : '') + '> Show labels on price axis</label>';
+    html += '</div></div>';
   }
 
   // ── Zone settings (momentum oscillators) ──
@@ -721,11 +769,17 @@ function openIndicatorConfig(idx) {
     html += '<div class="line-section"><h4>Levels / Zones</h4>';
     for (var zk in ind.params.zones) {
       var zv = ind.params.zones[zk];
+      var zw = zv.width || 1;
       html += '<div class="zone-row">';
       html += '<label><input type="checkbox" id="icfg_zone_vis_' + zk + '" ' + (zv.visible !== false ? 'checked' : '') + '></label>';
       html += '<label>' + zv.label + '</label>';
       html += '<input type="number" id="icfg_zone_val_' + zk + '" value="' + zv.value + '" step="1">';
       html += '<input type="color" id="icfg_zone_color_' + zk + '" value="' + zv.color + '">';
+      html += '<select id="icfg_zone_width_' + zk + '">';
+      for (var wi = 1; wi <= 4; wi++) {
+        html += '<option value="' + wi + '"' + (zw == wi ? ' selected' : '') + '>' + wi + '</option>';
+      }
+      html += '</select>';
       html += '</div>';
     }
     html += '</div>';
@@ -765,11 +819,13 @@ function applyIndicatorConfig(idx) {
       var visEl = document.getElementById("icfg_vis_" + member);
       var colEl = document.getElementById("icfg_color_" + member);
       var widEl = document.getElementById("icfg_width_" + member);
+      var chEl = document.getElementById("icfg_crosshair_" + member);
       if (visEl || colEl || widEl) {
         ind.params.lines[member] = {
           visible: visEl ? visEl.checked : true,
           color: colEl ? colEl.value : "#26a69a",
           width: widEl ? parseInt(widEl.value) || 2 : 2,
+          crosshair: chEl ? chEl.checked : false,
         };
       }
     }
@@ -779,14 +835,18 @@ function applyIndicatorConfig(idx) {
       var crEl = document.getElementById("icfg_cloud_red");
       var coEl = document.getElementById("icfg_cloud_opacity");
       if (cgEl || crEl || coEl) {
-        var opacity = coEl ? parseFloat(coEl.value) : 0.2;
         ind.params.lines.cloud = {
-          green: cgEl ? hexToRgba(cgEl.value, opacity) : "rgba(38,166,154,0.2)",
-          red: crEl ? hexToRgba(crEl.value, opacity) : "rgba(239,83,80,0.2)",
+          green: cgEl ? cgEl.value : "#26a69a",
+          red: crEl ? crEl.value : "#ef5350",
+          opacity: coEl ? parseFloat(coEl.value) : 0.2,
         };
       }
     }
   }
+
+  // Read priceLabels toggle
+  var plEl = document.getElementById("icfg_priceLabels");
+  if (plEl) ind.params.priceLabels = plEl.checked;
 
   // Read zone settings
   if (ind.params.zones) {
@@ -794,15 +854,18 @@ function applyIndicatorConfig(idx) {
       var zvisEl = document.getElementById("icfg_zone_vis_" + zk);
       var zvalEl = document.getElementById("icfg_zone_val_" + zk);
       var zcolEl = document.getElementById("icfg_zone_color_" + zk);
+      var zwidEl = document.getElementById("icfg_zone_width_" + zk);
       if (zvisEl) ind.params.zones[zk].visible = zvisEl.checked;
       if (zvalEl) ind.params.zones[zk].value = parseFloat(zvalEl.value) || 0;
       if (zcolEl) ind.params.zones[zk].color = zcolEl.value;
+      if (zwidEl) ind.params.zones[zk].width = parseInt(zwidEl.value) || 1;
     }
   }
 
   closeIndicatorConfig();
   renderIndChips();
   computeAndRenderIndicators();
+  saveIndicatorSettings();
 }
 
 function hexToRgba(hex, alpha) {
@@ -812,139 +875,128 @@ function hexToRgba(hex, alpha) {
   return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
 }
 
-function showStatus(msg, isError) {
-  var el = document.getElementById("status");
-  if (el) { el.textContent = msg; el.style.color = isError ? "#ef5350" : "#888"; }
+// ── Cloud Canvas Overlay (draws outside chart pipeline via single-shot rAF) ──
+var _cloudOverlays = {};
+var _cloudDrawRequestId = null;
+
+function ensureCloudCanvas() {
+  var c = document.getElementById('cloudCanvas');
+  if (c) return c;
+  var container = document.getElementById('chart');
+  if (!container) return null;
+  container.style.position = 'relative';
+  c = document.createElement('canvas');
+  c.id = 'cloudCanvas';
+  c.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;';
+  container.appendChild(c);
+  return c;
 }
 
-function computeAndRenderIndicators() {
-  if (!chart || activeIndicators.length === 0) return;
-  var req = {
-    exchange: exchangeEl.value,
-    symbol: symbolEl.value,
-    timeframe: timeframeEl.value,
-    indicators: activeIndicators.map(function(ind) {
-      var params = {};
-      for (var k in ind.params) {
-        if (k !== "color" && k !== "width" && k !== "label" && k !== "lines" && k !== "zones") params[k] = ind.params[k];
-      }
-      return { name: ind.name, params: params };
-    }),
-  };
-  var url = "/api/indicators/compute";
-  showStatus("Computing indicators...");
-  fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.error) { showStatus("Indicator error: " + data.error, true); return; }
-      renderIndicatorSeries(data);
-      showStatus("");
-    })
-    .catch(function(e) { showStatus("Indicator compute failed: " + e.message, true); });
-}
-
-function findCatalogEntry(name) {
-  for (var cat in INDICATOR_CATALOG) {
-    for (var i = 0; i < INDICATOR_CATALOG[cat].length; i++) {
-      if (INDICATOR_CATALOG[cat][i].name === name) return INDICATOR_CATALOG[cat][i];
-    }
-  }
-  return null;
-}
-
-var _panes = {};
-var _paneIndicators = {};
-var _nextPaneNum = 1;
-var _ichimokuCloudData = null;
-
-function getOrCreatePane(mode, indicatorName) {
-  if (mode === "main") return 0;
-  var shared = false;
-  if (mode === "shared") shared = true;
-  for (var pid in _panes) {
-    var p = _panes[pid];
-    if (shared && p.mode === "shared") return parseInt(pid);
-  }
-  var num = _nextPaneNum++;
-  var height = shared ? 80 : 120;
-  // Pane will be created implicitly by addSeries(..., paneIndex) later
-  _panes[num] = { mode: shared ? "shared" : "dedicated", height: height };
-  _paneIndicators[num] = [];
-  return num;
+function scheduleCloudDraw() {
+  if (_cloudDrawRequestId) return;
+  _cloudDrawRequestId = requestAnimationFrame(function() {
+    _cloudDrawRequestId = null;
+    drawCloud();
+  });
 }
 
 function drawCloud() {
-  if (!chart || !_ichimokuCloudData) return;
-  var d = _ichimokuCloudData;
-  var canvas = d.canvas;
+  var canvas = ensureCloudCanvas();
   if (!canvas) return;
-  var w = d._width || 0, h = d._height || 0;
-  if (w < 10 || h < 10) return;
-  if (canvas.width !== w) canvas.width = w;
-  if (canvas.height !== h) canvas.height = h;
-  var ctx = canvas.getContext("2d");
-  var ts = chart.timeScale();
+  var chartEl = document.getElementById('chart');
+  if (!chartEl) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = chartEl.clientWidth;
+  var h = chartEl.clientHeight;
+  if (w === 0 || h === 0) return;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
-  var xA = [], yA = [], xB = [], yB = [];
-  var pts = d.points;
-  var ref = d.refSeries;
-  for (var i = 0; i < pts.length; i++) {
-    var p = pts[i];
-    var x = ts.timeToCoordinate(p.time);
-    if (x === null) continue;
-    var ya = ref ? ref.priceToCoordinate(p.a) : null;
-    var yb = ref ? ref.priceToCoordinate(p.b) : null;
-    if (ya === null || yb === null) continue;
-    xA.push(x); yA.push(ya); xB.push(x); yB.push(yb);
-  }
-  if (xA.length < 2) return;
-  var col = d.colors || { green: "rgba(38,166,154,0.2)", red: "rgba(239,83,80,0.2)" };
-  for (var i = 0; i < xA.length - 1; i++) {
-    var midA = (yA[i] + yA[i+1]) / 2;
-    var midB = (yB[i] + yB[i+1]) / 2;
-    ctx.beginPath();
-    ctx.moveTo(xA[i], yA[i]);
-    ctx.lineTo(xA[i+1], yA[i+1]);
-    ctx.lineTo(xB[i+1], yB[i+1]);
-    ctx.lineTo(xB[i], yB[i]);
-    ctx.closePath();
-    ctx.fillStyle = midA <= midB ? col.green : col.red;
-    ctx.fill();
+
+  var ts = chart.timeScale();
+  var vr = ts.getVisibleRange();
+  if (!vr) return;
+  var pad = (vr.to - vr.from) * 0.15;
+  var lo = vr.from - pad, hi = vr.to + pad;
+
+  for (var key in _cloudOverlays) {
+    var cloud = _cloudOverlays[key];
+    var points = cloud.points;
+    var colors = cloud.colors;
+    var seriesA = cloud.seriesA;
+    var seriesB = cloud.seriesB;
+
+    var pixelData = [];
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (p.time < lo || p.time > hi) continue;
+      var x = ts.timeToCoordinate(p.time);
+      if (x === null) continue;
+      var ya = seriesA.priceToCoordinate(p.a);
+      var yb = seriesB.priceToCoordinate(p.b);
+      if (ya === null || yb === null) continue;
+      pixelData.push({ x: x, yA: ya, yB: yb });
+    }
+    if (pixelData.length < 2) continue;
+
+    var i = 0;
+    while (i < pixelData.length - 1) {
+      var mA = (pixelData[i].yA + pixelData[i + 1].yA) / 2;
+      var mB = (pixelData[i].yB + pixelData[i + 1].yB) / 2;
+      var isGreen = mA <= mB;
+      ctx.fillStyle = isGreen ? colors.green : colors.red;
+      var start = i;
+      i++;
+      while (i < pixelData.length - 1) {
+        mA = (pixelData[i].yA + pixelData[i + 1].yA) / 2;
+        mB = (pixelData[i].yB + pixelData[i + 1].yB) / 2;
+        if ((mA <= mB) !== isGreen) break;
+        i++;
+      }
+      var end = i;
+      ctx.beginPath();
+      ctx.moveTo(pixelData[start].x, pixelData[start].yA);
+      for (var j = start + 1; j <= end; j++) ctx.lineTo(pixelData[j].x, pixelData[j].yA);
+      for (var j = end; j >= start; j--) ctx.lineTo(pixelData[j].x, pixelData[j].yB);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 }
 
 function removeCloudOverlay() {
-  if (_ichimokuCloudData && _ichimokuCloudData._unsub) {
-    _ichimokuCloudData._unsub();
-  }
-  if (_ichimokuCloudData && _ichimokuCloudData._resizeObs) {
-    _ichimokuCloudData._resizeObs.disconnect();
-  }
-  _ichimokuCloudData = null;
-  var old = document.getElementById("cloudOverlay");
-  if (old) old.parentNode.removeChild(old);
+  _cloudOverlays = {};
+  if (_cloudDrawRequestId) { cancelAnimationFrame(_cloudDrawRequestId); _cloudDrawRequestId = null; }
 }
 
-function renderIchimokuCloud(candles, senkouAName, senkouBName, inds) {
-  removeCloudOverlay();
-
+function renderCloudFill(candles, topName, bottomName, inds) {
   // Resolve cloud colors from active indicator settings
+  var indicatorName = null;
+  for (var key in _cloudOverlays) { delete _cloudOverlays[key]; }
+  // Find which indicator this cloud belongs to
+  for (var a = 0; a < activeIndicators.length; a++) {
+    if (topName.indexOf(activeIndicators[a].name) === 0) {
+      indicatorName = activeIndicators[a].name;
+      break;
+    }
+  }
+  if (!indicatorName) return;
+
   var cloudColors = { green: "rgba(38,166,154,0.2)", red: "rgba(239,83,80,0.2)" };
-  for (var aa = 0; aa < activeIndicators.length; aa++) {
-    if (activeIndicators[aa].name === "ichimoku" && activeIndicators[aa].params.lines && activeIndicators[aa].params.lines.cloud) {
-      var cl = activeIndicators[aa].params.lines.cloud;
-      cloudColors.green = cl.green || cloudColors.green;
-      cloudColors.red = cl.red || cloudColors.red;
+  for (var a = 0; a < activeIndicators.length; a++) {
+    if (activeIndicators[a].name === indicatorName && activeIndicators[a].params.lines && activeIndicators[a].params.lines.cloud) {
+      var cl = activeIndicators[a].params.lines.cloud;
+      var opacity = cl.opacity !== undefined ? cl.opacity : 0.2;
+      cloudColors.green = cl.green ? hexToRgba(cl.green, opacity) : cloudColors.green;
+      cloudColors.red = cl.red ? hexToRgba(cl.red, opacity) : cloudColors.red;
       break;
     }
   }
 
-  var sa = inds[senkouAName];
-  var sb = inds[senkouBName];
+  var sa = inds[topName];
+  var sb = inds[bottomName];
   if (!sa || !sb || sa.error || sb.error) return;
   var aVals = sa.values;
   var bVals = sb.values;
@@ -969,74 +1021,155 @@ function renderIchimokuCloud(candles, senkouAName, senkouBName, inds) {
   }
   if (points.length === 0) return;
 
-  var seriesA = indicatorSeries[senkouAName];
-  var seriesB = indicatorSeries[senkouBName];
-  var refSeries = null;
-  for (var k in seriesA) { refSeries = seriesA[k]; break; }
-  if (!refSeries) for (var k in seriesB) { refSeries = seriesB[k]; break; }
-  if (!refSeries) return;
+  var seriesA = indicatorSeries[topName];
+  var seriesB = indicatorSeries[bottomName];
+  var senkouASeries = null, senkouBSeries = null;
+  for (var k in seriesA) { senkouASeries = seriesA[k]; break; }
+  for (var k in seriesB) { senkouBSeries = seriesB[k]; break; }
+  if (!senkouASeries || !senkouBSeries) return;
 
-  _ichimokuCloudData = { points: points, colors: cloudColors, refSeries: refSeries };
+  var cloudKey = "cloud_" + topName + "_" + bottomName;
+  _cloudOverlays[cloudKey] = { seriesA: senkouASeries, seriesB: senkouBSeries, points: points, colors: cloudColors };
+  scheduleCloudDraw();
+}
 
-  // Clean up previous canvas if it exists; always create a fresh one
-  var oldCanvas = document.getElementById("cloudOverlay");
-  if (oldCanvas) oldCanvas.parentNode.removeChild(oldCanvas);
+function showStatus(msg, isError) {
+  var el = document.getElementById("status");
+  if (el) { el.textContent = msg; el.style.color = isError ? "#ef5350" : "#888"; }
+}
 
-  var container = document.getElementById("chart");
-  var canvas = document.createElement("canvas");
-  canvas.id = "cloudOverlay";
-  canvas.style.cssText = "position:absolute;top:0;left:0;pointer-events:none;z-index:10;";
-  container.style.position = "relative";
-  container.appendChild(canvas);
-
-  _ichimokuCloudData.canvas = canvas;
-  _ichimokuCloudData.container = container;
-
-  // Cache canvas dimensions via ResizeObserver (no getBoundingClientRect in drawCloud)
-  var ro = new ResizeObserver(function(entries) {
-    for (var ei = 0; ei < entries.length; ei++) {
-      var cr = entries[ei].contentRect;
-      if (_ichimokuCloudData) {
-        _ichimokuCloudData._width = Math.round(cr.width);
-        _ichimokuCloudData._height = Math.round(cr.height);
-      }
+function renderVolumeIndicator() {
+  if (indicatorSeries["volume"]) {
+    var seriesList = indicatorSeries["volume"];
+    for (var s in seriesList) {
+      if (chart) { try { chart.removeSeries(seriesList[s]); } catch(_) {} }
     }
-    window._cloudDirty = true;
-  });
-  ro.observe(container);
-  _ichimokuCloudData._resizeObs = ro;
-
-  // Set initial dimensions from offsetWidth/offsetHeight (cached, no forced layout)
-  _ichimokuCloudData._width = Math.round(container.offsetWidth);
-  _ichimokuCloudData._height = Math.round(container.offsetHeight);
-
-  // Single subscription sets dirty flag — no pile-up (cleaned up in removeCloudOverlay)
-  var cloudRangeHandler = function() { window._cloudDirty = true; };
-  chart.timeScale().subscribeVisibleTimeRangeChange(cloudRangeHandler);
-  _ichimokuCloudData._cloudRangeHandler = cloudRangeHandler;
-  _ichimokuCloudData._unsub = function() {
-    try { chart.timeScale().unsubscribeVisibleTimeRangeChange(cloudRangeHandler); } catch(_) {}
-  };
-
-  window._cloudDirty = true;
-
-  // rAF loop — only checks dirty flag, no polling of getVisibleLogicalRange
-  if (!window._cloudLoopRunning) {
-    window._cloudLoopRunning = true;
-    (function tick() {
-      if (!_ichimokuCloudData || !chart || !document.getElementById("cloudOverlay")) {
-        window._cloudLoopRunning = false;
-        return;
-      }
-      try {
-        if (window._cloudDirty) {
-          window._cloudDirty = false;
-          drawCloud();
-        }
-      } catch(_) {}
-      window._cloudLoopId = requestAnimationFrame(tick);
-    })();
+    delete indicatorSeries["volume"];
   }
+  var data = _cachedCandles;
+  if (!data || !data.candles || data.candles.length === 0) return;
+  var candles = data.candles;
+  var cs = loadChartSettings();
+  var bullColor = cs.bullBody || "#808080";
+  var bearColor = cs.bearBody || "#2d2d2d";
+  var vols = candles.map(function(c) {
+    return {
+      time: Math.floor(c.t / 1000),
+      value: c.v,
+      color: c.c >= c.o ? bullColor : bearColor,
+    };
+  });
+  if (vols.length === 0) return;
+  var series = chart.addSeries(LightweightCharts.HistogramSeries, {
+    color: bullColor,
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'volume',
+    axisLabelVisible: false,
+  }, 0);
+  chart.priceScale('volume').applyOptions({
+    scaleMargins: { top: 0.8, bottom: 0 },
+  });
+  series.setData(vols);
+  if (!indicatorSeries["volume"]) indicatorSeries["volume"] = {};
+  indicatorSeries["volume"][0] = series;
+}
+
+function computeAndRenderIndicators() {
+  if (!chart || activeIndicators.length === 0) return;
+
+  // Filter out client-only indicators (volume) from API request
+  var hasVolume = false;
+  var apiIndicators = [];
+  for (var i = 0; i < activeIndicators.length; i++) {
+    var ind = activeIndicators[i];
+    if (ind.name === "volume") {
+      hasVolume = true;
+    } else {
+      apiIndicators.push(ind);
+    }
+  }
+
+  if (apiIndicators.length > 0) {
+    var req = {
+      exchange: exchangeEl.value,
+      symbol: symbolEl.value,
+      timeframe: timeframeEl.value,
+      limit: window._candleData ? window._candleData.length : _maxBars,
+      indicators: apiIndicators.map(function(ind) {
+        var params = {};
+        for (var k in ind.params) {
+          if (k !== "color" && k !== "width" && k !== "label" && k !== "lines" && k !== "zones") params[k] = ind.params[k];
+        }
+        return { name: ind.name, params: params };
+      }),
+    };
+    var url = "/api/indicators/compute";
+    showStatus("Computing indicators...");
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) { showStatus("Indicator error: " + data.error, true); return; }
+        renderIndicatorSeries(data);
+        if (hasVolume) renderVolumeIndicator();
+        showStatus("");
+      })
+      .catch(function(e) { showStatus("Indicator compute failed: " + e.message, true); });
+  } else {
+    // Only client-side indicators active — clean up API series & panes, render volume
+    for (var name in indicatorSeries) {
+      if (name === "volume") continue;
+      var seriesList = indicatorSeries[name];
+      for (var s in seriesList) {
+        if (chart) { try { chart.removeSeries(seriesList[s]); } catch(_) {} }
+      }
+      delete indicatorSeries[name];
+    }
+    for (var pid in _panes) {
+      if (chart) { try { chart.removePane(parseInt(pid)); } catch(_) {} }
+      var header = document.getElementById("paneHeader_" + pid);
+      if (header) header.parentNode.removeChild(header);
+      var handle = document.getElementById("paneHandle_" + pid);
+      if (handle) handle.parentNode.removeChild(handle);
+    }
+    _panes = {};
+    _paneIndicators = {};
+    removeCloudOverlay();
+    if (hasVolume) renderVolumeIndicator();
+    showStatus("");
+  }
+}
+
+function findCatalogEntry(name) {
+  for (var cat in INDICATOR_CATALOG) {
+    for (var i = 0; i < INDICATOR_CATALOG[cat].length; i++) {
+      if (INDICATOR_CATALOG[cat][i].name === name) return INDICATOR_CATALOG[cat][i];
+    }
+  }
+  return null;
+}
+
+var _panes = {};
+var _paneIndicators = {};
+var _nextPaneNum = 1;
+
+function getOrCreatePane(mode, indicatorName) {
+  if (mode === "main") return 0;
+  var shared = false;
+  if (mode === "shared") shared = true;
+  for (var pid in _panes) {
+    var p = _panes[pid];
+    if (shared && p.mode === "shared") return parseInt(pid);
+  }
+  var num = _nextPaneNum++;
+  var height = shared ? 50 : 70;
+  // Pane will be created implicitly by addSeries(..., paneIndex) later
+  _panes[num] = { mode: shared ? "shared" : "dedicated", height: height };
+  _paneIndicators[num] = [];
+  return num;
 }
 
 function renderIndicatorSeries(data) {
@@ -1105,12 +1238,14 @@ function renderIndicatorSeries(data) {
     var lineColor = ind.color || "#26a69a";
     var lineWidth = 2;
     var lineVisible = true;
+    var lineCrosshair = false;
     var activeName = activeMatch ? activeMatch.name : "";
     if (activeMatch && activeMatch.params.lines && activeMatch.params.lines[name]) {
       var ls = activeMatch.params.lines[name];
       lineColor = ls.color || lineColor;
       lineWidth = ls.width || lineWidth;
       lineVisible = ls.visible !== false;
+      lineCrosshair = ls.crosshair === true;
     }
     if (!lineVisible) continue;
 
@@ -1139,19 +1274,16 @@ function renderIndicatorSeries(data) {
     }
     if (points.length === 0) continue;
 
+    var showLabel = activeMatch && activeMatch.params.priceLabels !== false;
     var series;
     var scaleOpts = resolvedPane === 0 ? { priceScaleId: 'price' } : {};
     if (ind.style === "histogram") {
-      series = chart.addSeries(LightweightCharts.HistogramSeries, Object.assign({ color: lineColor, priceFormat: { type: "volume" } }, scaleOpts), resolvedPane);
+      series = chart.addSeries(LightweightCharts.HistogramSeries, Object.assign({ color: lineColor, priceFormat: { type: "volume" }, crosshairMarkerVisible: false, axisLabelVisible: false }, scaleOpts), resolvedPane);
     } else {
-      series = chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color: lineColor, lineWidth: lineWidth }, scaleOpts), resolvedPane);
+      series = chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color: lineColor, lineWidth: lineWidth, crosshairMarkerVisible: lineCrosshair, axisLabelVisible: showLabel }, scaleOpts), resolvedPane);
     }
     series.setData(points);
-    // Set pane height for newly created sub-panes
-    if (resolvedPane > 0 && _panes[resolvedPane] && !_panes[resolvedPane]._heightSet) {
-      try { chart.panes()[resolvedPane].setHeight(_panes[resolvedPane].height); } catch(_) {}
-      _panes[resolvedPane]._heightSet = true;
-    }
+    // Leave pane height auto-managed by LightweightCharts so time scale stays visible
     if (!indicatorSeries[name]) indicatorSeries[name] = {};
     indicatorSeries[name][resolvedPane] = series;
   }
@@ -1159,7 +1291,7 @@ function renderIndicatorSeries(data) {
   for (var gname in groups) {
     var g = groups[gname];
     if (g.cloud) {
-      renderIchimokuCloud(data.candles || [], g.cloud.top, g.cloud.bottom, inds);
+      renderCloudFill(data.candles || [], g.cloud.top, g.cloud.bottom, inds);
     }
   }
 
@@ -1184,7 +1316,7 @@ function renderIndicatorSeries(data) {
       var pl = firstSeriesInPane.createPriceLine({
         price: z.value,
         color: z.color || "#888",
-        lineWidth: 1,
+        lineWidth: z.width || 1,
         lineStyle: LightweightCharts.LineStyle.Dashed,
         axisLabelVisible: true,
         title: z.label,
@@ -1257,18 +1389,31 @@ function startLive() {
           open: c.o, high: c.h, low: c.l, close: c.c,
         };
         candleSeries.update(point);
-        volumeSeries.update({
-          time: Math.floor(c.t / 1000),
-          value: c.v,
-          color: c.c >= c.o ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)',
-        });
-        // keep stored data in sync for regression
+        if (indicatorSeries["volume"] && indicatorSeries["volume"][0]) {
+          const __cs = loadChartSettings();
+          indicatorSeries["volume"][0].update({
+            time: Math.floor(c.t / 1000),
+            value: c.v,
+            color: c.c >= c.o ? __cs.bullBody : __cs.bearBody,
+          });
+        }
         if (window._candleData) {
           const idx = window._candleData.findIndex(d => d.time === point.time);
           if (idx >= 0) window._candleData[idx] = point;
-          else window._candleData.push(point);
+          else {
+            window._candleData.push(point);
+            // Cap memory — trim oldest when exceeding maxBars buffer
+            if (window._candleData.length > _maxBars + 200) {
+              window._candleData = window._candleData.slice(-_maxBars);
+              candleSeries.setData(window._candleData);
+              // Update price levels when data is trimmed
+              updatePriceLevels(window._candleData);
+            }
+          }
         }
       }
+      // Schedule cloud redraw for live candles
+      scheduleCloudDraw();
       lastCandleTime = newC[newC.length - 1].t;
       const to = msToDate(lastCandleTime);
       statusEl.textContent = `${data.count} candles  |  ... → ${to}  (live)`;
@@ -1288,10 +1433,13 @@ const TF_SEC = {
 function initChart() {
   chart = LightweightCharts.createChart(document.getElementById('chart'), {
     layout: { textColor: '#555', background: { color: '#f5f5f5' } },
-    grid: { vertLines: { color: '#e0e0e0' }, horzLines: { color: '#e0e0e0' } },
+    grid: { vertLines: { color: '#d0d0d0' }, horzLines: { color: '#c0c0c0', style: LightweightCharts.LineStyle.Dashed } },
     timeScale: {
+      visible: true,
       timeVisible: true,
+      secondsVisible: false,
       borderColor: '#0f3460',
+      entireTextOnly: false,
       tickMarkFormatter: (time, tickMarkType, locale) => {
         const d = new Date(time * 1000);
         return d.toLocaleString('fr-FR', {
@@ -1302,11 +1450,14 @@ function initChart() {
         });
       },
     },
-    rightPriceScale: { borderColor: '#0f3460' },
+    rightPriceScale: { visible: true, borderColor: '#0f3460', entireTextOnly: false, ticksVisible: true },
+    leftPriceScale: { visible: true, borderColor: '#0f3460', entireTextOnly: false, ticksVisible: true },
+    handleScroll: { vertTouchDrag: true, horzTouchDrag: true, pressedMouseMove: true },
+    handleScale: { axisPressedMouseMove: { time: true, price: true }, pinch: true, mouseWheel: true },
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Normal,
-      vertLine: { visible: true, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
-      horzLine: { visible: true, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
+      vertLine: { visible: false, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
+      horzLine: { visible: false, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
     },
     localization: {
       locale: 'fr-FR',
@@ -1326,13 +1477,13 @@ function initChart() {
     wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     priceScaleId: 'price',
   }, 0);
-  volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
-    priceFormat: { type: 'volume' },
-    priceScaleId: 'volume',
+
+  // Create an invisible series to drive the left price scale (Option A)
+  var leftScaleDummy = chart.addSeries(LightweightCharts.LineSeries, {
+    priceScaleId: 'left',
+    visible: false,
   }, 0);
-  chart.priceScale('volume').applyOptions({
-    scaleMargins: { top: 0.8, bottom: 0 },
-  });
+  window._leftScaleDummy = leftScaleDummy;
 
   // Apply saved chart settings
   var cs = loadChartSettings();
@@ -1342,6 +1493,19 @@ function initChart() {
     wickUpColor: cs.bullWick, wickDownColor: cs.bearWick,
   });
   chart.applyOptions({ layout: { background: { color: cs.chartBg } } });
+  // Apply saved crosshair lines visibility
+  chart.applyOptions({
+    crosshair: {
+      vertLine: { visible: cs.crosshairLines, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
+      horzLine: { visible: cs.crosshairLines, labelBackgroundColor: '#e94560', color: '#e94560', width: 1 },
+    },
+  });
+
+  // Ensure time scale is visible (needed for sub-panes in v5)
+  chart.timeScale().applyOptions({ visible: true, timeVisible: true });
+
+  // Subscribe to time range changes for cloud overlay redraw
+  try { chart.timeScale().subscribeVisibleTimeRangeChange(function() { scheduleCloudDraw(); }); } catch(e) { /* v5 removed this method */ }
 
   // Crosshair legend: show indicator values on hover
   var legendEl = document.getElementById('crosshairLegend');
@@ -1360,6 +1524,11 @@ function initChart() {
       return;
     }
     var lines = [];
+    // Timestamp at top
+    if (param.time) {
+      var d = new Date(param.time * 1000);
+      lines.push('<span style="color:#888">' + d.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' }) + '</span>');
+    }
     // Candle price
     if (param.seriesData && param.seriesData.has(candleSeries)) {
       var cd = param.seriesData.get(candleSeries);
@@ -1390,10 +1559,128 @@ function initChart() {
   chart.subscribeCrosshairMove(window._legendHandler);
 }
 
-function autoScale() {
-  chart.timeScale().fitContent();
-  candleSeries.priceScale().applyOptions({ autoScale: true });
+var _zoomLock = 'both'; // 'time', 'price', or 'both'
+
+function goToLatest() {
+  try {
+    chart.timeScale().fitContent();
+    chart.timeScale().scrollToRealTime();
+    candleSeries.priceScale().applyOptions({ autoScale: true });
+    setZoomLock('both');
+  } catch(e) { console.error('goToLatest failed:', e); }
 }
+
+function setZoomLock(mode) {
+  _zoomLock = mode;
+  try {
+    chart.applyOptions({
+      handleScale: {
+        axisPressedMouseMove: {
+          time: mode === 'both' || mode === 'time',
+          price: mode === 'both' || mode === 'price',
+        },
+      },
+    });
+  } catch(e) {}
+}
+
+document.addEventListener('keydown', function(e) {
+  if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey && !e.metaKey && document.activeElement && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.getAttribute('contenteditable') !== 'true') {
+    var modes = ['both', 'time', 'price'];
+    var idx = modes.indexOf(_zoomLock);
+    setZoomLock(modes[(idx + 1) % modes.length]);
+  }
+});
+
+var _candleEarliestTime = 0;
+var _loadOlderTimer = null;
+
+function startLoadOlderPolling() {
+  stopLoadOlderPolling();
+  _loadOlderTimer = setInterval(function() {
+    var btn = document.getElementById('load-older-btn');
+    if (!btn || !chart || !window._candleData || window._candleData.length === 0) return;
+    try {
+      var vr = chart.timeScale().getVisibleRange();
+      if (!vr) { btn.style.display = 'none'; return; }
+      // Show button if visible range includes the earliest loaded candle
+      var firstTime = window._candleData[0].time;
+      var show = vr.from <= firstTime + 5;
+      btn.style.display = show ? 'block' : 'none';
+    } catch(_) { btn.style.display = 'none'; }
+  }, 1000);
+}
+function stopLoadOlderPolling() {
+  if (_loadOlderTimer) { clearInterval(_loadOlderTimer); _loadOlderTimer = null; }
+}
+
+async function loadOlderCandles() {
+  if (!window._candleData || window._candleData.length === 0) return;
+  var btn = document.getElementById('load-older-btn');
+  if (btn) btn.style.display = 'none';
+  var ex = exchangeEl.value, sym = symbolEl.value, tf = timeframeEl.value;
+  var firstMs = _candleEarliestTime || (window._candleData[0].time * 1000);
+  var url = '/api/candles?exchange=' + ex + '&symbol=' + sym + '&timeframe=' + tf + '&limit=' + _maxBars + '&end_time=' + (firstMs - 1);
+  try {
+    var r = await fetch(url);
+    var data = await r.json();
+    if (!data.candles || data.candles.length === 0) {
+      if (btn) btn.title = 'No more data';
+      return;
+    }
+    var oldCandles = data.candles.map(function(c) {
+      return { time: Math.floor(c.timestamp / 1000), open: c.open, high: c.high, low: c.low, close: c.close };
+    });
+    // data.candles is in ascending order, window._candleData is also ascending — concat preserves sorted order
+    // NO .reverse() — that would create non-monotonic data, breaking LightweightCharts' setData
+    // Prepend older candles
+    window._candleData = oldCandles.concat(window._candleData);
+    _candleEarliestTime = data.candles[0].timestamp;
+    candleSeries.setData(window._candleData);
+    _priceLevelRange = 0; // force rebuild on wider range
+    updatePriceLevels(window._candleData);
+    // Re-compute indicators with full dataset
+    if (activeIndicators.length > 0) computeAndRenderIndicators();
+    chart.timeScale().fitContent();
+  } catch(e) { console.error('loadOlderCandles failed:', e); }
+}
+
+function autoResizePanes() {
+  try {
+    // Auto-scale main pane's price scale
+    if (candleSeries) candleSeries.priceScale().applyOptions({ autoScale: true });
+    // Auto-scale all sub-pane price scales via their first series
+    for (var name in indicatorSeries) {
+      if (name === "volume") continue;
+      var seriesList = indicatorSeries[name];
+      for (var pid in seriesList) {
+        if (parseInt(pid) > 0) {
+          try { seriesList[pid].priceScale().applyOptions({ autoScale: true }); } catch(_) {}
+        }
+      }
+    }
+  } catch(e) { console.error('autoResizePanes failed:', e); }
+}
+
+function goToLatest() {
+  try {
+    chart.timeScale().scrollToRealTime();
+  } catch(e) { console.error('goToLatest failed:', e); }
+}
+
+// Mousedown on price scale → select price zoom, time scale → select time zoom, else both
+// This lets you click-drag the scale labels to zoom that axis, then wheel-zoom on chart uses same axis
+document.getElementById('chart-wrapper').addEventListener('mousedown', function(e) {
+  var chartEl = document.getElementById('chart');
+  var rect = chartEl.getBoundingClientRect();
+  var x = e.clientX - rect.left;
+  var y = e.clientY - rect.top;
+  var w = chartEl.clientWidth;
+  var h = chartEl.clientHeight;
+  if (x > w - 55) { setZoomLock('price'); }
+  else if (y > h - 30) { setZoomLock('time'); }
+  else { setZoomLock('both'); }
+});
 
 function msToDateTime(ms) {
   return new Date(ms).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -1426,8 +1713,55 @@ function filterSymbols() {
   });
 }
 
+var _priceLevelLines = [];
+var _priceLevelRange = 0;
+
+function updatePriceLevels(candles) {
+  if (!candles || candles.length < 2) return;
+  var lo = Infinity, hi = -Infinity;
+  for (var ci = 0; ci < candles.length; ci++) {
+    if (candles[ci].low < lo) lo = candles[ci].low;
+    if (candles[ci].high > hi) hi = candles[ci].high;
+  }
+  var range = hi - lo;
+  if (range <= 0) return;
+  // Throttle: only rebuild if range changed by >1%
+  if (_priceLevelRange > 0 && Math.abs(range - _priceLevelRange) / _priceLevelRange < 0.01) return;
+  _priceLevelRange = range;
+  // Remove old price level lines
+  for (var pi = 0; pi < _priceLevelLines.length; pi++) {
+    try { candleSeries.removePriceLine(_priceLevelLines[pi]); } catch(_) {}
+  }
+  _priceLevelLines = [];
+  // Compute "nice" interval
+  var rawStep = range / 8;
+  var magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  var residual = rawStep / magnitude;
+  var niceStep;
+  if (residual <= 1.5) niceStep = magnitude;
+  else if (residual <= 3.5) niceStep = 2 * magnitude;
+  else if (residual <= 7.5) niceStep = 5 * magnitude;
+  else niceStep = 10 * magnitude;
+  var start = Math.ceil(lo / niceStep) * niceStep;
+  for (var p = start; p <= hi; p += niceStep) {
+    _priceLevelLines.push(candleSeries.createPriceLine({
+      price: p,
+      color: 'rgba(255,255,255,0.25)',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+    }));
+  }
+}
+
 async function loadChart() {
   stopLive();
+  // Reset price levels for fresh chart load
+  _priceLevelRange = 0;
+  for (var pi = 0; pi < _priceLevelLines.length; pi++) {
+    try { candleSeries.removePriceLine(_priceLevelLines[pi]); } catch(_) {}
+  }
+  _priceLevelLines = [];
   const ex = exchangeEl.value, sym = symbolEl.value, tf = timeframeEl.value;
   if (!ex || !sym) return;
   document.getElementById('loading').style.display = 'block';
@@ -1441,18 +1775,40 @@ async function loadChart() {
     return;
   }
   document.getElementById('empty').style.display = 'none';
-  const candles = data.candles.map(c => ({
+  var candles = data.candles.map(c => ({
     time: Math.floor(c.t / 1000),
     open: c.o, high: c.h, low: c.l, close: c.c,
   }));
-  const vols = data.candles.map(c => ({
-    time: Math.floor(c.t / 1000),
-    value: c.v,
-    color: c.c >= c.o ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)',
-  }));
+  // Cap to _maxBars to prevent unbounded memory growth
+  if (candles.length > _maxBars) candles = candles.slice(-_maxBars);
   candleSeries.setData(candles);
-  volumeSeries.setData(vols);
   window._candleData = candles;
+  updatePriceLevels(candles);
+  // Update left scale dummy to mirror the visible price range
+  if (window._leftScaleDummy) {
+    var lo = Infinity, hi = -Infinity;
+    for (var ci = 0; ci < candles.length; ci++) {
+      if (candles[ci].low < lo) lo = candles[ci].low;
+      if (candles[ci].high > hi) hi = candles[ci].high;
+    }
+    window._leftScaleDummy.setData([
+      { time: candles[0].time, value: lo },
+      { time: candles[candles.length - 1].time, value: hi },
+    ]);
+  }
+  _candleEarliestTime = candles.length > 0 ? candles[0].time * 1000 : 0;
+  startLoadOlderPolling();
+
+  // Auto-add volume indicator if not present
+  if (!activeIndicators.some(function(a) { return a.name === "volume"; })) {
+    var volEntry = findCatalogEntry("volume");
+    if (volEntry) {
+      var volParams = JSON.parse(JSON.stringify(volEntry.defaults));
+      volParams.lines = {};
+      activeIndicators.push({ name: "volume", label: "Volume", params: volParams, paneMode: volEntry.paneMode || "main" });
+      renderIndChips();
+    }
+  }
   lastCandleTime = data.candles[data.candles.length - 1].t;
   chart.timeScale().fitContent();
   // Scroll to the latest candle so the right side of the chart is visible
@@ -1497,7 +1853,7 @@ async function ensureDataLoaded() {
   } catch(_) {}
 
   // 4. Full fetch from analyze endpoint (has metrics + OHLCV)
-  let url = `/analyze/data?exchange=${ex}&symbol=${sym}&timeframe=${tf}`;
+  let url = `/analyze/data?exchange=${ex}&symbol=${sym}&timeframe=${tf}&limit=${_maxBars}`;
   if (startDateEl.value) url += `&start_time=${dateToMs(startDateEl.value)}`;
   if (endDateEl.value) url += `&end_time=${dateToMs(endDateEl.value) + 86400000}`;
   try {
@@ -1732,7 +2088,7 @@ let _cacheKey = '';
 
 /* ─── INFO ARRAY state ─── */
 let _thresholds = [1, 2, 3, 5, 10];
-let _maxBars = 5000;
+let _maxBars = (loadChartSettings().maxBars) || 5000;
 let _metricOrder = [];
 
 function getActiveToggles(prefix) {
@@ -3500,25 +3856,51 @@ function sortRawTable(col) {
   if (_cachedCandles) renderRawTable(_cachedCandles);
 }
 
-/* ─── Event listeners ─── */
-document.getElementById('mcontrols').addEventListener('change', () => {
-  if (document.querySelector('#analyze-view.view.active')) loadAnalyze();
-});
-document.getElementById('maxBars').addEventListener('change', () => {
-  if (document.querySelector('#analyze-view.view.active')) loadAnalyze();
-});
+/* ─── Event listeners (null-guarded — DOM may not exist for analyze/rawdata) ─── */
+try {
+  var mcEl = document.getElementById('mcontrols');
+  if (mcEl) mcEl.addEventListener('change', function() {
+    if (document.querySelector('#analyze-view.view.active')) loadAnalyze();
+  });
+  var mbEl = document.getElementById('maxBars');
+  if (mbEl) mbEl.addEventListener('change', function() {
+    if (document.querySelector('#analyze-view.view.active')) loadAnalyze();
+  });
+} catch(e) { console.error('Event listener setup failed:', e); }
 
 exchangeEl.addEventListener('change', filterSymbols);
-symbolEl.addEventListener('change', () => { const t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
-timeframeEl.addEventListener('change', () => { const t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
-startDateEl.addEventListener('change', () => { const t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
-endDateEl.addEventListener('change', () => { const t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
+symbolEl.addEventListener('change', function() { var t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
+timeframeEl.addEventListener('change', function() { var t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
+startDateEl.addEventListener('change', function() { var t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
+endDateEl.addEventListener('change', function() { var t = document.querySelector('.tab.active'); if (t) switchTab(t.dataset.tab); });
 
-initChart();
-activeIndicators.push({ name: "ichimoku", label: "Ichimoku Cloud", params: { tenkan: 9, kijun: 26, senkou: 52, color: "#26a69a" }, paneMode: "main" });
-activeIndicators.push({ name: "rsi", label: "RSI(14)", params: { period: 14, color: "#ab47bc" }, paneMode: "shared" });
-renderIndChips();
-loadPairs().then(function() { loadAllData(); });
+/* ─── Bootstrap (defensive — any crash here should NOT kill loadPairs) ─── */
+window.addEventListener('error', function(e) {
+  var errEl = document.getElementById('init-error-msg');
+  if (errEl) errEl.textContent = 'Script error: ' + (e.message || 'unknown error');
+  document.getElementById('init-error').style.display = 'block';
+});
+try {
+  initChart();
+} catch (e) {
+  console.error('initChart failed:', e);
+  var errEl = document.getElementById('init-error-msg');
+  if (errEl) errEl.textContent = 'Chart init failed: ' + (e.message || 'unknown error');
+  document.getElementById('init-error').style.display = 'block';
+}
+try {
+  var savedInds = loadIndicatorSettings();
+  if (savedInds && savedInds.length > 0) {
+    for (var si = 0; si < savedInds.length; si++) activeIndicators.push(savedInds[si]);
+  } else {
+    activeIndicators.push({ name: "ichimoku", label: "Ichimoku Cloud", params: { tenkan: 9, kijun: 26, senkou: 52, color: "#26a69a" }, paneMode: "main" });
+    activeIndicators.push({ name: "rsi", label: "RSI(14)", params: { period: 14, color: "#ab47bc" }, paneMode: "shared" });
+  }
+  renderIndChips();
+} catch(e) { console.error('indicator init failed:', e); }
+loadPairs().then(function() { loadAllData(); }).catch(function(e) {
+  console.error('loadPairs error:', e);
+});
 </script>
 </body>
 </html>"""

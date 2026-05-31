@@ -20,35 +20,30 @@ Mécanismes disponibles :
 Après toute modification de `api/` ou `candles/` ou `vibe_engine/` :
 
 ```bash
-# 1. Arrêt des agents — utilise pkill (pas screen -X quit) pour tuer TOUS les processes
-pkill -f "python.*api/agent.py" 2>/dev/null || true
-pkill -f "python.*api/vibe_agent.py" 2>/dev/null || true
+# 0. Kill ALL old agents/servers — scripts/kill-agents.sh handles ALL duplicates
+scripts/kill-agents.sh --all
 sleep 1
-rm -f /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
-rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json
-rm -f /tmp/groq_busy.lock
 
-# 2. Nettoyage cache Python
+# 1. Nettoyage cache Python
 find . -name '__pycache__' -exec rm -rf {} + 2>/dev/null
 find . -name '*.pyc' -delete 2>/dev/null
 
-# 3. Démarrage agents
+# 2. Démarrage agents
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 sleep 1
 screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
 sleep 1
 
-# 4. Tuer processus résiduel + nettoyer cache
-fuser -k 8001/tcp 2>/dev/null
-sleep 2
+# 3. Nettoyage cache + démarrage serveur
 find . -name '__pycache__' -exec rm -rf {} + 2>/dev/null
 find . -name '*.pyc' -delete 2>/dev/null
-
-# 5. Démarrage serveur
 scripts/server.sh start 8001
 
-# 6. Vérification
+# 4. Vérification
 curl -sf http://localhost:8001/api/health > /dev/null || ./scripts/notify.sh error "Server health check failed"
+echo "agent: $(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l) running"
+echo "vibe-agent: $(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l) running"
+echo "candle: $(ps aux | grep '[u]vicorn' | wc -l) running"
 ./scripts/notify.sh done "Servers restarted"
 ```
 
@@ -64,24 +59,25 @@ curl -sf http://localhost:8001/api/health > /dev/null || ./scripts/notify.sh err
 
 ### ⚠️ Zombie screen session accumulation
 
-Each `screen -dmS agent ...` or `screen -S agent -X quit` + `screen -dmS agent` pair can create duplicate screen sessions if the old one wasn't killed properly. Over many server restarts, **dozens of zombie screen sessions** accumulate.
+Each `screen -dmS agent ...` or `screen -S agent -X quit` + `screen -dmS agent` pair can create duplicate screen sessions if the old one wasn't killed properly. Over many server restarts, **dozens of zombie screen sessions** accumulate. **`screen -S agent -X quit` only kills the FIRST matching session — duplicates are invisible to this command.**
 
-**Detection:**
+**Detection (add to session start checklist):**
 ```bash
-screen -ls | grep -c agent   # count agent sessions
-screen -ls | grep -c vibe-agent  # count vibe-agent sessions
+scripts/kill-agents.sh --check   # reports counts, warns if > 1 of any process
 ```
 
-**Cleanup (use `pkill`, NOT `screen -S ... -X quit`):**
+Or manually (exclude SCREEN wrapper whose cmdline also contains `api/agent.py`):
 ```bash
-# Kill ALL agent/vibe-agent Python processes
-pkill -f "python.*api/agent.py" 2>/dev/null
-pkill -f "python.*api/vibe_agent.py" 2>/dev/null
-pkill -f "uvicorn" 2>/dev/null
-sleep 2
-# Wipe dead screen sessions
-screen -wipe 2>/dev/null
-# Start fresh
+ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l        # expected: 1
+ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l   # expected: 1
+screen -ls 2>/dev/null | grep -cE 'agent|vibe-agent'                         # expected: 2
+```
+
+**Cleanup (use the centralized script, NOT `screen -S ... -X quit`):**
+```bash
+scripts/kill-agents.sh --all   # kills ALL duplicates + servers + cleans IPC
+sleep 1
+# Then start fresh
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
 screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
@@ -89,7 +85,11 @@ sleep 3
 curl -sf http://localhost:8001/api/health
 ```
 
-**Prevention:** Always use `pkill -f "python.*api/agent.py"` before starting new agent sessions. Never rely on `screen -S agent -X quit` alone — it only kills ONE of potentially many duplicate sessions.
+**Prevention:**
+- **NEVER** use `screen -S agent -X quit` alone — it only kills ONE of potentially many duplicates
+- **NEVER** use `pkill -f` — the pattern matches `pkill` itself in /proc, causing a self-signal hang
+- **ALWAYS** use `scripts/kill-agents.sh` which kills ALL matching Python processes by PID
+- The `code-quality` skill checklist item 19 auto-detects duplicates at session start
 
 ## 3. Mise à jour des .md
 
@@ -246,17 +246,21 @@ When the session ends (user says `exit`, `/exit`, `/quit`, `stop`, `restart`):
 - ERRORS.md — log all bugs fixed
 - ROADMAP.md — check off done items
 - RULES.md — add any new rules created this session
+- AGENTS.md, CONVENTIONS.md — update as needed
 
-### B. GitHub backup
+### B. Generate session synthesis
+Write a topic-organized summary to `USERS_DOCUMENT/synthesis/synthesis-<topic>-<date>.md`.
+This distills what was done across the session into a thematic, cross-referenceable document.
+
+### C. Run project audit
+Execute the `project-audit` skill to scan the full project tree, dependencies, git state,
+doc sync, file organization, and propose improvements. Fix any issues found.
+
+### D. GitHub backup
 Push all changes to `origin main` via the github-backup skill.
 
-### C. Full server shutdown
+### E. Full server shutdown
 Kill ALL remaining processes so nothing is left active:
 ```bash
-pkill -f "python.*api/agent.py" 2>/dev/null
-pkill -f "python.*api/vibe_agent.py" 2>/dev/null
-pkill -f "uvicorn" 2>/dev/null
-sleep 1
-screen -wipe 2>/dev/null
-rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/groq_busy.lock 2>/dev/null
+scripts/kill-agents.sh --all
 ```

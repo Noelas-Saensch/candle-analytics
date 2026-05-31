@@ -1853,6 +1853,7 @@ class IndicatorSeriesRequest(BaseModel):
     symbol: str
     timeframe: str
     indicators: list[IndicatorParam]
+    limit: int = 0
 
 
 @router.post("/indicators/compute")
@@ -1864,7 +1865,8 @@ async def compute_indicators(req: IndicatorSeriesRequest):
     result = {"candles": [], "indicators": {}}
     try:
         pairs = get_available_pairs()
-        candles = query_candles(req.exchange, req.symbol, req.timeframe, limit=0, desc=True)
+        var_limit = req.limit if req.limit > 0 else 5000
+        candles = query_candles(req.exchange, req.symbol, req.timeframe, limit=var_limit, desc=True)
         if not candles:
             return result
 
@@ -2034,9 +2036,15 @@ async def compute_indicators(req: IndicatorSeriesRequest):
                         "members": ["ichimoku_tenkan", "ichimoku_kijun", "ichimoku_senkou_a", "ichimoku_senkou_b", "ichimoku_chikou"],
                         "cloud": {"top": "ichimoku_senkou_a", "bottom": "ichimoku_senkou_b"},
                     }
+                    result["indicator_groups"] = result.get("indicator_groups", {})
+                    result["indicator_groups"]["bbands"] = {
+                        "label": "Bollinger Bands",
+                        "members": ["bbands_upper", "bbands_middle", "bbands_lower"],
+                        "cloud": {"top": "bbands_upper", "bottom": "bbands_lower"},
+                    }
                     continue
                 except Exception as e:
-                    result["indicators"]["ichimoku"] = {"error": str(e)}
+                    result["indicators"][name] = {"error": str(e)}
                     continue
 
             if values is not None:

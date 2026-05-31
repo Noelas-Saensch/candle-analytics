@@ -1,15 +1,124 @@
 # Error Knowledge Base — candle-analytics
 
+## 2026-05-31 | Dashboard empty — exchange/pair dropdowns empty, chart not rendered (two root causes)
+
+- **Error**: The exchange and symbol `<select>` elements have no `<option>` children. Chart is blank — no candles, no error message. Page HTML renders (header, tabs, controls bar visible) but JavaScript initialization fails silently.
+- **Root cause #1 (predominant)**: `document.getElementById('mcontrols')` and `document.getElementById('maxBars')` at lines 3574-3579 return `null` because no HTML elements with those IDs exist in the template. Calling `.addEventListener('change', ...)` on `null` throws `TypeError: Cannot read properties of null (reading 'addEventListener')`. This crash occurs BEFORE `initChart()` and `loadPairs()` are reached — the entire inline script stops. **This is the real reason the dropdowns stay empty.** The `window.error` handler at line 3587 also never fires because it incorrectly checked `e.target.tagName === 'SCRIPT'` (for runtime errors `e.target` is the `Window` object, not `SCRIPT`).
+- **Root cause #2 (secondary)**: Even if the null-crash were avoided, any runtime error in `initChart()` (e.g., `LightweightCharts` undefined if CDN fails) would also stop the script, preventing `loadPairs()` from running. Previously there was no try-catch, no fallback CDN, and no visible error message.
+- **Fix (first attempt — Session 036, insufficient)**:
+  1. **CDN fallback** — `onerror` handler on the `<script>` tag loads from `cdn.jsdelivr.net` if `unpkg.com` fails.
+  2. **try-catch around initChart()** — catches chart creation errors, shows `#init-error` box.
+  3. **.catch() on loadPairs()** — fetch errors logged.
+  → Did NOT fix the issue because the crash at `mcontrols`/`maxBars` happened before `initChart()` was reached.
+- **Fix (final — Session 036 continued)**:
+  1. **Null-guard event listeners** — `document.getElementById('mcontrols')` and `document.getElementById('maxBars')` now check for `null` before calling `.addEventListener()`, wrapped in an outer try-catch.
+  2. **Expand try-catch to indicator init** — `activeIndicators.push()` and `renderIndChips()` also wrapped in try-catch so any future failure doesn't prevent `loadPairs()`.
+  3. **Simplify `window.error` handler** — removed incorrect `e.target.tagName === 'SCRIPT'` filter; now shows `#init-error` for any script error.
+- **Lessons learned**:
+  - A try-catch around `initChart()` is useless if code BEFORE it crashes first. Any synchronous DOM access in the init path can kill the entire bootstrap.
+  - `window.addEventListener('error')` — for runtime errors, `e.target` is the `Window` object, not the `SCRIPT` element. The `e.target.tagName === 'SCRIPT'` guard was always false, making the handler a no-op.
+  - Always null-guard `document.getElementById(...)` calls that target optional DOM elements.
+- **Detection**: Manual observation. The smoke test (`chat_e2e.py smoke`) does NOT catch this — it checks DOM element existence and JS syntax but does not execute JS in a real browser.
+- **Files**: `api/dashboard.py` — lines 3574-3579 (null-guarded event listeners), lines 3595-3608 (defensive bootstrap with nested try-catch), line 12 (CDN fallback), lines 267-271 (error div)
+
+
 > Accumulated errors, root causes, and fixes for this project.
 > Entries sorted newest-first. Updated after every bug fix.
+>
+> **Test safeguard**: Features causing 2+ bugs must have a test log in
+> `TESTS_<feature>.md`. See `.opencode/skills/test-safeguard/SKILL.md`.
 
 ---
+
+## 2026-05-31 | Primitive API blocks chart render cycle → revert to Canvas overlay + single-shot rAF
+
+- **Error**: Ichimoku cloud Primitive API (`ISeriesPrimitive`) runs `updateAllViews()` inside the chart's render pipeline. Even with visible-range filtering + grouped path fills, every scroll/zoom frame calls `timeToCoordinate()` + `priceToCoordinate()` for ~60 points, blocking the chart from rendering until it completes. Cloud rendering should NEVER block the chart.
+- **Cause**: The `ISeriesPrimitive` design inherently runs custom rendering inside the chart's own Canvas render cycle. There is no API to decouple custom draws from the chart's frame. Any JS execution time in `updateAllViews()` or `drawBackground()` directly delays the chart's render → jank on every interaction.
+- **Fix**: Reverted to Canvas overlay approach: a separate `<canvas>` element positioned absolutely over the chart container with `pointer-events: none`. Cloud drawing runs in its own `requestAnimationFrame` (single-shot, not persistent loop — zero idle CPU). Chart and cloud render independently. Added `scheduleCloudDraw()` (debounces multiple events into one rAF), `drawCloud()`, `ensureCloudCanvas()`. Generalized `_cloudOverlays{}` to support both Ichimoku AND BBands cloud fills from a single `renderCloudFill()`.
+- **Files**: `api/dashboard.py` — removed `createCloudPrimitive()`, `removeCloudPrimitive()`, `_ichimokuCloudPrimitive`, `renderIchimokuCloud()`. Added `_cloudOverlays`, `_cloudDrawRequestId`, `ensureCloudCanvas()`, `scheduleCloudDraw()`, `drawCloud()`, `renderCloudFill()`.
+
+## 2026-05-31 | Volume as deletable indicator — remove hardcoded volumeSeries
+
+- **Error**: Volume was created as a hardcoded `HistogramSeries` in `initChart()` and updated in `loadChart()` + `startLive()`. It could not be removed or reconfigured like other indicators. Volume bar colors were hardcoded `rgba(38,166,154,0.3)`/`rgba(239,83,80,0.3)` instead of matching candlestick chart settings (bullBody/bearBody).
+- **Cause**: Volume was never migrated to the indicator system when `INDICATOR_CATALOG` was introduced.
+- **Fix**: Added `volume` to `INDICATOR_CATALOG` in the Volume category. Removed `volumeSeries` globe + series creation from `initChart()`. Added `renderVolumeIndicator()` function that reads candle data from `_cachedCandles`, creates a HistogramSeries with per-point colors from `loadChartSettings().bullBody`/`bearBody`. `computeAndRenderIndicators()` now filters volume from the API request and handles it locally. `loadChart()` auto-adds volume if not present. `startLive()` SSE handler updates via `indicatorSeries["volume"][0]`. Timestamp added to legend. Smoke test updated to check for `name: "volume"` instead of `volumeSeries`.
+- **Files**: `api/dashboard.py`, `scripts/chat_e2e.py`
+
+## 2026-05-31 | BBands missing indicator_groups cloud entry
+
+- **Error**: BBands middleware and lower lines rendered but no cloud fill between them. Cloud fill only worked for Ichimoku.
+- **Cause**: `indicator_groups` for BBands was never added to the server compute endpoint in `routes.py`.
+- **Fix**: Added `indicator_groups["bbands"]` with `"cloud": {"top": "bbands_upper", "bottom": "bbands_lower"}` after the bbands computation block. Frontend's `renderCloudFill()` already handled any cloud group generically.
+- **Files**: `api/routes.py` — line ~1917
+
+## 2026-05-31 | Zone lines missing configurable width
+
+- **Error**: Overbought/oversold zone lines always rendered with `lineWidth: 1`. Users couldn't adjust zone line thickness in the indicator config panel.
+- **Cause**: `INDICATOR_ZONES` levels didn't have a `width` field. Config panel had no width selector. Rendering code hardcoded `lineWidth: 1`.
+- **Fix**: Added `width: 1` to all INDICATOR_ZONES level defaults. Added width `<select>` (1-4) per zone in `openIndicatorConfig()`. Read width in `applyIndicatorConfig()`. Pass `z.width || 1` to `createPriceLine()`.
+- **Files**: `api/dashboard.py` — `INDICATOR_ZONES`, `initZoneSettings()`, `openIndicatorConfig()`, `applyIndicatorConfig()`, render loop in `renderIndicatorSeries()`.
+
+## 2026-05-31 | Ichimoku cloud | Per-segment Canvas fill() calls cause 0.5-1s lag on scroll/zoom
+
+- **Error**: After visible-range filtering fix, scrolling/zooming still has 0.5-1s delay. Chart feels sluggish during any interaction.
+- **Cause**: The `drawBackground()` method called `ctx.beginPath()` + `ctx.fill()` for EACH cloud segment (59+ calls per frame for visible range). Each `fill()` rasterizes a path — combined, this creates a cumulative GPU/CPU bottleneck that delays the chart's render cycle by hundreds of ms.
+- **Fix**: Group contiguous same-color segments into a single path. The algorithm finds runs of same-colored (green/red) segments, builds one polygon per run (top A-edge + bottom B-edge), and calls `ctx.fill()` once per run. Typical Ichimoku data has 2-3 color switches per view, so 2-3 `fill()` calls instead of 59+.
+- **Files**: `api/dashboard.py` — `createCloudPrimitive()`
+
+## 2026-05-31 | Ichimoku cloud | Primitive converts all points → lag on scroll/zoom
+
+- **Error**: Chart lags during scroll/zoom after Primitive API migration. Even a single scroll gesture feels janky.
+- **Cause**: Primitive's `updateAllViews()` → `view.update()` called `timeToCoordinate()` + `priceToCoordinate()` for ALL cloud points (500+) on every render frame, even for off-screen points. This is O(n) coordinate conversion on every animation frame during scroll, causing visible lag.
+- **Fix**: Filter points to visible range + 15% padding using `chart.timeScale().getVisibleRange()`. Only points within the visible window are converted to pixel coords. For a typical view showing ~50 candles, this processes ~60 points instead of 500+. Also cached `renderer` and `paneViews` array references so the library doesn't re-create objects each frame.
+- **Files**: `api/dashboard.py` — `createCloudPrimitive()`
+
+## 2026-05-31 | Ichimoku cloud | Canvas overlay → LightweightCharts Primitive API (fix performance + eliminate overlay)
+
+- **Error**: Cloud rendering used a separate `<canvas>` overlay with `ResizeObserver` + `subscribeVisibleTimeRangeChange` calling `drawCloud()` directly per event. Multiple events in a single scroll fired unbounded `drawCloud()` calls (O(n) coordinate conversion each). Separate overlay also caused z-order issues and lifecycle complexity.
+- **Cause**: Original Canvas-overlay approach was needed because LightweightCharts v4 didn't support custom rendering. v5 introduced `ISeriesPrimitive` (`series.attachPrimitive()`) which allows drawing on the chart's own Canvas as part of the native render cycle.
+- **Fix**: Replaced entire overlay stack with a `createCloudPrimitive()` factory. Implements `paneViews()` → `IPrimitivePaneView` with `zOrder() = 'bottom'`. `drawBackground()` fills polygons on the chart Canvas. `updateAllViews()` converts data→pixel coords once per render cycle. No overlay `<canvas>`, no `ResizeObserver`, no `subscribeVisibleTimeRangeChange`, no rAF. Zero idle CPU.
+- **Files**: `api/dashboard.py` — removed `drawCloud()`, `removeCloudOverlay()`, `_ichimokuCloudData`, canvas DOM code; added `createCloudPrimitive()`, `removeCloudPrimitive()`.
+- **Test log**: `TESTS_ichimoku_cloud.md` (created)
+
+## 2026-05-31 | Ichimoku cloud | Duplicate cloud color inputs (6×) in config panel
+
+- **Error**: Indicator config panel shows 6 identical "Cloud Fill" sections. `applyIndicatorConfig()` reads only the first one via `getElementById` — values are correct but UI is confusing.
+- **Cause**: `openIndicatorConfig()` had the cloud section INSIDE the `for` loop over line members (renders 5× — once per ichimoku line) PLUS a duplicate section outside the loop (= 6× total).
+- **Fix**: Removed the inner cloud section (lines 702-721). Kept the outer section with proper hex fallbacks and dynamic opacity selection.
+- **Files**: `api/dashboard.py` — `openIndicatorConfig()`
+
+## 2026-05-31 | Ichimoku cloud | Senkou A/B line colors default to #000000 (invisible on chart)
+
+- **Error**: Ichimoku Senkou A and Senkou B lines render as black (`#000000`) — nearly invisible on the chart background. User must manually change color in config panel.
+- **Cause**: `INDICATOR_LINES.ichimoku.defaults` had `"ichimoku_senkou_a": { color: "#000000" }` and `"ichimoku_senkou_b": { color: "#000000" }`.
+- **Fix**: Changed to `#26a69a` (green) for Senkou A and `#ef5350` (red) for Senkou B — standard Ichimoku colors.
+- **Files**: `api/dashboard.py` — `INDICATOR_LINES` definition
+
+## 2026-05-31 | Ichimoku cloud | Cloud color input shows #000000 — colors never applied
+- **Error**: Cloud fill color inputs in indicator config always show black (`#000000`). User picks green, but cloud renders black. Setting opacity also has no visible effect.
+- **Cause**: `openIndicatorConfig()` used `cg.replace(/[^#a-fA-F0-9]/g,"").slice(0,7)` on the stored rgba string `"rgba(38,166,154,0.9)"`. The regex keeps `b` and `a` from "rgba" plus digits, producing `"ba38166"` — not a valid 7-char hex with `#` prefix. `<input type="color">` silently falls back to `#000000`. `applyIndicatorConfig()` reads `#000000` from the input, stores it as the cloud color. Cloud renders black.
+- **Fix**: Store cloud as `{ green: "#26a69a", red: "#ef5350", opacity: 0.9 }` (hex + opacity separate). Use hex directly in `value=` of `<input type="color">`. Convert to rgba via `hexToRgba(hex, opacity)` only when rendering (`renderIchimokuCloud`). Remove broken regex.
+- **Files**: `api/dashboard.py` — INDICATOR_LINES defaults, `initLineSettings()`, `openIndicatorConfig()`, `applyIndicatorConfig()`, `renderIchimokuCloud()`
+
+## 2026-05-31 | Ichimoku cloud | rAF loop runs at 60fps even when chart is idle
+- **Error**: Cloud rendering used a persistent `requestAnimationFrame` loop that fired at 60fps continuously, checking a dirty flag. Even with the Session 034 optimizations (no `getBoundingClientRect`, no polling expensive APIs), the rAF callback itself consumed ~1-2% CPU when idle.
+- **Cause**: A `tick()` rAF loop was started once and ran indefinitely until the cloud was removed. Each frame called `requestAnimationFrame(tick)` unconditionally, even when `_cloudDirty` was false.
+- **Fix**: Remove the rAF loop entirely. Subscribe directly to `chart.timeScale().subscribeVisibleTimeRangeChange()` and call `drawCloud()` from the handler. Also call `drawCloud()` from the ResizeObserver callback. No requestAnimationFrame, no dirty flag polling, no idle CPU usage.
+- **Files**: `api/dashboard.py` — `renderIchimokuCloud()`
+
+## 2026-05-31 | pkill -f | `pkill -f "pattern"` hangs indefinitely
+- **Error**: `pkill -f "python.*api/agent.py"` hangs forever, never returns, must be killed with Ctrl+C.
+- **Cause**: `pkill -f` matches the full command line of all processes in `/proc`, including the `pkill` command itself (since its args contain the pattern). This creates a self-signal loop where `pkill` sends SIGTERM to itself, the kernel delivers it, but the process may not terminate cleanly in this state.
+- **Fix**: Never use `pkill -f`. Use the `[a]pi` trick (`grep '[a]pi/agent\.py'`) which prevents self-match because the regex `[a]pi` matches `api` but NOT the literal string `[a]pi` that appears on the grep command line. Safer than `grep -v grep` because it also prevents the `bash -c` subshell wrapper from matching.
+- **Files**: `RULES.md` §2, `RULES.md` §12, `.opencode/skills/session-lifecycle/SKILL.md`, `.opencode/skills/server-lifecycle/SKILL.md`, `.opencode/skills/auto-reload-server/SKILL.md`
 
 ## 2026-05-30 | Screen sessions | Zombie agent processes accumulate — 60+ duplicate agent screens
 - **Error**: `ps aux | grep agent.py` shows 60 agent processes. Resources wasted, IPC file conflicts, Groq rate limits hit from duplicated work.
 - **Cause**: Each restart via `screen -dmS agent ...` after `screen -S agent -X quit` starts a NEW session, but `screen -S agent -X quit` only kills the FIRST session named "agent". After many restart cycles, duplicate screen sessions accumulate. The actual Python processes also survive because `screen -X quit` doesn't kill orphan children cleanly.
-- **Fix**: Use `pkill -f "python.*api/agent.py"` before starting new agent sessions. This kills ALL Python agent processes by name pattern. Then `screen -wipe` to clear dead screen entries. Documented in RULES.md §2.
-- **Files**: `RULES.md`, `.opencode/skills/session-lifecycle/SKILL.md`
+- **Fix (2026-05-31, definitive)**: Created `scripts/kill-agents.sh` — centralized script that kills ALL matching processes (both SCREEN wrappers AND Python children) by PID via `ps|grep|xargs` (safe against `pkill -f` self-match hang), then wipes dead sessions with `screen -wipe`. Updated ALL references: `RULES.md` §2, all skill files, `autorestart.json`, `scripts/chat_e2e.py`. Uses `[a]pi` regex trick to prevent grep self-match on both the grep command line and the `bash -c` subshell wrapper. Count excludes `SCREEN` wrapper (whose cmdline also contains `api/agent.py`). Added duplicate detection (item 19) to `code-quality` checklist and session auto-detection in `session-lifecycle` skill. **454 stale processes were consuming 7.8 GB RAM at time of fix — killed instantly via `bash scripts/kill-agents.sh`.**
+- **Root cause**: `screen -S agent -X quit` only kills the FIRST session with name "agent". After N restarts, N sessions exist but only 1 dies each time. Orphaned Python subprocesses survive because `screen -X quit` doesn't cascade kill children.
+- **Prevention**: Always use `scripts/kill-agents.sh` before starting agents. The script uses the `[a]pi` regex trick (`grep '[a]pi/agent\.py'`) which prevents self-match on both the grep command line and the `bash -c` subshell wrapper — eliminating the intermittent "count=2" race condition. All skills, configs, and checklists consistently use this pattern. The `code-quality` checklist item 19 auto-detects duplicates on every build. The `session-lifecycle` skill checks for duplicates at every session start. `grep -v SCREEN` is still required in count checks because the SCREEN wrapper's cmdline also contains `api/agent.py`.
+- **Files**: `scripts/kill-agents.sh` (new), `RULES.md`, `.opencode/skills/auto-reload-server/SKILL.md`, `.opencode/skills/session-lifecycle/SKILL.md`, `.opencode/skills/code-quality/SKILL.md`, `.opencode/skills/server-lifecycle/SKILL.md`, `.opencode/autorestart.json`, `scripts/chat_e2e.py`
 - **Error**: Chart is laggy, CPUs run hot during idle. Ichimoku cloud redraws waste CPU on every animation frame even when chart is not scrolling.
 - **Cause**: Three independent bottlenecks:
   1. `drawCloud()` calls `container.getBoundingClientRect()` every redraw — forces synchronous layout reflow.

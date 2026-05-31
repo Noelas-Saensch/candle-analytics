@@ -58,11 +58,11 @@ Si Docker n'est pas pratique pour du dev rapide, les commandes natives sont docu
 
 ### Redémarrage rapide après modif de api/
 
+**⚠️ `screen -S agent -X quit` ne tue que la PREMIÈRE session dupliquée. Utilise `kill-agents.sh`.**
+
 ```bash
-# Arrêt
-screen -S agent -X quit 2>/dev/null
-screen -S vibe-agent -X quit 2>/dev/null
-screen -S candle -X quit 2>/dev/null
+# Arrêt complet (tue TOUS les processus, même les doublons)
+scripts/kill-agents.sh --all
 sleep 1
 find . -name '__pycache__' -exec rm -rf {} + 2>/dev/null
 
@@ -95,6 +95,8 @@ curl http://localhost:8001/vibe-lab
 - ❌ **Modifier dashboard.py sans vérifier JS** → SyntaxError silencieuse
 - ❌ **Oublier de restart après modif** → l'ancien code tourne encore
 - ❌ **Cargo test** → linker error avec pyo3. Toujours `maturin develop --release`
+- ❌ **`pkill -f`** → HANG garanti car le pattern matche pkill lui-même dans /proc. Utiliser `scripts/kill-agents.sh` qui gère tous les doublons.
+- ❌ **`screen -S agent -X quit`** → ne tue que la PREMIÈRE session. Après N restart, N sessions existent. Toujours utiliser `scripts/kill-agents.sh`.
 
 ---
 
@@ -185,7 +187,21 @@ docker compose build api && docker compose up -d
 
 ## À faire absolument avant de quitter une session
 
-1. ✏️ Demander "Met à jour les .md" si pas fait automatiquement
-2. 🧪 Vérifier que le serveur répond : `curl localhost:8001/api/health`
-3. 📦 Git si besoin : `git status` + `git push`
-4. 🐳 Optionnel : `docker compose build` pour figer l'état actuel
+1. ✏️ **.md updates** — CHRONOLOGIE.md, ROADMAP.md, ERRORS.md, RULES.md, AGENTS.md
+2. 📝 **Session synthesis** — demande "Génère la synthèse de session"
+3. 🔍 **Project audit** — demande "Fais un audit complet du projet"
+4. 📦 **GitHub backup** — demande "Push sur GitHub" ou fais `git push`
+5. 🧪 **Smoke test** — `python3 scripts/chat_e2e.py smoke --port 8001`
+6. 🐳 Optionnel : `docker compose build` pour figer l'état actuel
+
+## ⏳ Pending chart review (next session — remind user)
+
+The following chart features were changed at the end of session 037 (2026-05-31) and need user validation:
+
+1. **5000 candles fix** — `/analyze/data` now returns most recent 5000 instead of oldest. Load chart and check that price/volume match what Ichimoku shows.
+2. **Price labels toggle** — Each indicator has a `"Show labels on price axis"` checkbox in its settings (default OFF). Volume never shows labels. Check that toggling on/off works.
+3. **Left price scale** — Left-side price labels should appear (Option A). Check visibility.
+4. **Price levels** — Dashed horizontal lines at round-number price intervals should appear (Option C). Check that they update on zoom/scroll.
+5. **Volume `axisLabelVisible: false`** — Volume should never show price axis labels.
+
+**When user says "some things aren't good on the chart", remind them to check these 5 items above.**

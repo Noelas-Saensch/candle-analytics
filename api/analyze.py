@@ -222,7 +222,9 @@ async def analyze_data(
         limit=limit,
         start_time=start_time,
         end_time=end_time,
+        desc=True,
     )
+    rows.reverse()
 
     if not rows:
         return {"count": 0, "candles": []}

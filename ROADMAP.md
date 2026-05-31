@@ -125,17 +125,42 @@ Phase 4 ── Advanced Data + ML ───── 🔮 Future
 - [x] **NL → Rust** — generates Rust `fn decide()` using `vibe_engine_rs` functions
 - [x] **Smoke test coverage** — `/convert` page HTML/JS/API checks in chat_e2e.py
 
-### Phase 3 : Live Trading 🔵
+### Phase 3 : Live Trading — Alertes / Conditions / Automation 🔵
 
-- [ ] **In-process LLM integration** — move agent logic from file bridge to direct FastAPI integration
-- [ ] **Model upgrade** — evaluate 13B+ models
-- [ ] **Adaptive fetch rate** per timeframe
-- [ ] **Paper trading engine** — simulated execution with configurable fees/slippage
-- [ ] **Kill switch** — max drawdown / daily loss / Sharpe collapse detection
-- [ ] **Alerts** — Telegram / email
-- [ ] **Position tracker** — open positions, P&L, trade history
-- [ ] **Live performance dashboard** — equity curve, drawdown, win rate
-- [ ] **Multi-strategy portfolio** — run multiple edges simultaneously
+> Voir le plan détaillé complet : [`USERS_DOCUMENT/project-docs/ALERTES_CONDITIONS_AUTOMATION.md`](USERS_DOCUMENT/project-docs/ALERTES_CONDITIONS_AUTOMATION.md)
+
+#### A — Infrastructure (parseur, moteur de triggers, persistence)
+- [ ] **A.1** Parseur d'expressions de conditions (`POST /api/conditions/evaluate`)
+- [ ] **A.2** Moteur de triggers (boucle d'évaluation, types on_close/on_cross/realtime/once)
+- [ ] **A.3** Persistance SQLite (tables conditions, actions, historique + CRUD)
+
+#### B — Canaux de livraison
+- [ ] **B.1** Coloration de bougie (bar highlighting sur le chart)
+- [ ] **B.2** Notification in-app (SSE toast)
+- [ ] **B.3** Telegram Bot
+- [ ] **B.4** Discord Webhook
+- [ ] **B.5** Email SMTP
+- [ ] **B.6** Webhook TradingView-compatible
+- [ ] **B.7** WhatsApp (optionnel, basse priorité)
+
+#### C — Exécution d'ordres
+- [ ] **C.1** Paper Trading (extension StrategySandbox, position manager, P&L)
+- [ ] **C.2** Live Trading CCXT (ordres, balance, positions, cancel)
+- [ ] **C.3** Kill Switch (drawdown, pertes, erreurs, notification urgence)
+- [ ] **C.4** Position Sizing (fixe, risk-based, Kelly)
+
+#### D — Chart & UI
+- [ ] **D.1** Condition triggers sur le chart (marqueurs, zones colorées)
+- [ ] **D.2** Panneau de configuration des conditions (éditeur, actions, historique)
+- [ ] **D.3** Live trigger log (flux SSE en temps réel)
+- [ ] **D.4** Performance dashboard (equity curve, drawdown, métriques)
+
+#### E — Filtres statistiques (HAUTE PRIORITÉ)
+- [ ] **E.1** Amplitude OHLCV % (filtre les bougies plates)
+- [ ] **E.2** Percentile rank (rolling window, classement des métriques)
+- [ ] **E.3** Bar highlighting conditionnel (couleurs par filtre)
+- [ ] **E.4** Éditeur de métriques (sélection source, comparaison, seuils)
+- [ ] **E.5** Seuils utilisateur (sliders, persistance)
 
 ### Phase 4 : Advanced Data + ML 🔮
 

@@ -40,11 +40,26 @@ scripts/server.sh list
 
 ### Force-kill by port (last resort)
 
+**⚠️ NEVER use `pkill -f`** — it HANGs because the pattern matches the `pkill` command itself in `/proc`, creating a self-signal loop. Use these instead:
+
 ```bash
 # Try multiple methods in order
 fuser -k PORT/tcp 2>/dev/null            # fastest
 kill $(lsof -ti:PORT) 2>/dev/null         # lsof method
 sudo kill -9 $(fuser PORT/tcp 2>/dev/null)  # root method
+```
+
+### Kill agents by name (use centralized script)
+
+**`screen -S agent -X quit` only kills the FIRST duplicate. Always use the centralized
+script that kills ALL matching Python processes by PID:**
+
+```bash
+# Kill ALL agent/vibe-agent processes + clean IPC
+bash scripts/kill-agents.sh --all
+
+# Kill agents only (leave server running)
+bash scripts/kill-agents.sh
 ```
 
 ## Lifecycle rules

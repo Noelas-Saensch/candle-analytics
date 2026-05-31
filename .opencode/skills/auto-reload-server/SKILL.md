@@ -18,9 +18,13 @@ content is not detected by `--reload` timestamp checks. Always restart manually.
 
 ## Startup command
 
-Start ALL 3 processes (server + 2 agents):
+Start ALL 3 processes (server + 2 agents). **Always kill stale processes first:**
 
 ```bash
+# 0. Kill ALL previous agents + servers (handles any number of duplicates)
+scripts/kill-agents.sh --all
+sleep 1
+
 # 1. Strategy Lab agent — requires GROQ_API_KEY env var
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 sleep 1
@@ -37,15 +41,13 @@ sleep 3
 curl -s http://localhost:8001/api/health
 ```
 
-To check processes: `screen -ls` or `ps aux | grep -E "api/agent|api/vibe_agent|uvicorn" | grep -v grep`
+To check processes: `screen -ls` or `ps aux | grep -E "[a]pi/agent|[a]pi/vibe_agent|[u]vicorn"`
 
 ## Restart commands
 
 Restart all 3 at once:
 ```bash
-screen -S agent -X quit 2>/dev/null; screen -S vibe-agent -X quit 2>/dev/null; screen -S candle -X quit 2>/dev/null
-sleep 1
-rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json
+scripts/kill-agents.sh --all && sleep 1
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
 sleep 1
 screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
@@ -53,28 +55,26 @@ sleep 1
 screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
 sleep 3
 curl -s http://localhost:8001/api/health
-echo "agent: $(ps aux | grep 'api/agent.py' | grep -v grep | wc -l) running"
-echo "vibe-agent: $(ps aux | grep 'api/vibe_agent.py' | grep -v grep | wc -l) running"
-echo "candle: $(ps aux | grep 'uvicorn' | grep -v grep | wc -l) running"
+echo "agent: $(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l) running"
+echo "vibe-agent: $(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l) running"
+echo "candle: $(ps aux | grep '[u]vicorn' | wc -l) running"
 ```
 
 Restart Strategy Lab agent only:
 ```bash
-screen -S agent -X quit 2>/dev/null; sleep 1
+scripts/kill-agents.sh && sleep 1
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py'
-sleep 1
 ```
 
 Restart Vibe Lab agent only:
 ```bash
-screen -S vibe-agent -X quit 2>/dev/null; sleep 1
+scripts/kill-agents.sh && sleep 1
 screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py'
-sleep 1
 ```
 
 Restart server only:
 ```bash
-screen -S candle -X quit 2>/dev/null; sleep 1
+scripts/kill-agents.sh --servers && sleep 1
 screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001'
 sleep 3
 curl -s http://localhost:8001/api/health

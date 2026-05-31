@@ -17,17 +17,21 @@ On every session start, check the following:
    - If today > last entry date → **new day detected**
    - Action: prompt user "New day detected — create session entry?"
 
-2. **Last session ended abruptly?** — Check for `sessions_upload/.synthesis-needed`
+2. **Stale agent check** — Count running agent/vibe-agent processes (exclude SCREEN wrapper whose cmdline also matches). If count > 1, stale duplicates have accumulated (known memory leak, see ERRORS.md §2026-05-30):
+    - `echo "agent: $(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l) (expected: 1)"`
+    - `echo "vibe-agent: $(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l) (expected: 1)"`
+   - `echo "screen sessions: $(screen -ls 2>/dev/null | grep -cE 'agent|vibe-agent' || echo 0) (expected: 2)"`
+   - If duplicates found → run `scripts/kill-agents.sh --all` before restart
+
+3. **Last session ended abruptly?** — Check for `sessions_upload/.synthesis-needed`
    - If marker exists → "Last session ended abruptly — synthesize it?"
    - If user agrees, run `/synthesis s` to fill the gap
    - After completion (or user declines), remove `.synthesis-needed`
 
-3. **Restart all servers** — Kill stale screen sessions and restart all 3 processes:
-   - Kill: `screen -S agent -X quit 2>/dev/null; screen -S vibe-agent -X quit 2>/dev/null; screen -S candle -X quit 2>/dev/null`
+3. **Restart all servers** — Use `scripts/kill-agents.sh --all` to kill ALL duplicates, then restart in order:
    - Restart in order: Strategy Lab agent → Vibe Lab agent → FastAPI server
-   - Clean up stale `/tmp/vibe_chat_req_*.json`, `/tmp/vibe_chat_res_*.json`, `/tmp/strategy_chat_req_*.json`, `/tmp/strategy_chat_res_*.json`
    - Verify server health via `/api/health`
-   - Report status of all 3 processes
+   - Report status of all 3 processes + warn if any count > 1 (duplicates = stale agent leak)
 
 4. **Read project docs** — Read `USERS_DOCUMENT/project-docs/*.md` relevant to the session's focus:
    - `ARCHITECTURE.md` — system overview
@@ -81,28 +85,23 @@ When the session is ending (user says `/exit`, `/quit`, `stop`, `exit`, or `rest
 3. Update ROADMAP.md (move done items to ✅ Done, add new 🟢 To Do items)
 4. Update ERRORS.md with all bugs fixed this session
 5. Update all other `.md` files (RULES.md, AGENTS.md, etc.) as needed
-6. **Execute GitHub backup** — push all changes to `origin main` via the `github-backup` skill
-7. **Full server shutdown** — kill ALL running processes (agent, vibe-agent, candle, uvicorn)
-8. Write session synthesis to `sessions_upload/`
+6. **Generate session synthesis** — write a topic-organized summary to `USERS_DOCUMENT/synthesis/synthesis-<topic>-<date>.md`
+7. **Run project audit** — execute the `project-audit` skill to scan structure, dependencies, git state, and propose improvements
+8. **Execute GitHub backup** — push all changes to `origin main` via the `github-backup` skill
+9. **Full server shutdown** — kill ALL running processes (agent, vibe-agent, candle, uvicorn)
 
 ## Full server shutdown
 
 When the session ends or user exits opencode, ALL server processes must be killed.
-Nothing should remain active:
+Nothing should remain active.
+
+Always use the centralized kill script — it handles any number of duplicates and
+is safe against `pkill -f` self-match hangs:
 
 ```bash
-# Kill all agent/vibe-agent Python processes by name
-pkill -f "python.*api/agent.py" 2>/dev/null
-pkill -f "python.*api/vibe_agent.py" 2>/dev/null
-# Kill uvicorn server
-pkill -f "uvicorn" 2>/dev/null
-sleep 1
-# Wipe dead screen sessions
-screen -wipe 2>/dev/null
-# Clean IPC files
-rm -f /tmp/*chat_req_*.json /tmp/*chat_res_*.json /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/groq_busy.lock 2>/dev/null
+scripts/kill-agents.sh --all
 # Verify nothing remains
-echo "Remaining processes:" && ps aux | grep -E 'api/agent|api/vibe_agent|uvicorn' | grep -v grep || echo "None — clean shutdown"
+echo "Remaining processes:" && ps aux | grep -E '[a]pi/agent|[a]pi/vibe_agent|[u]vicorn' || echo "None — clean shutdown"
 ```
 
 ## Sub-agent usage during session
@@ -122,32 +121,29 @@ After ANY file edit, creation, or deletion in the project, restart ALL 3 process
 ```bash
 ALL_OK=true
 
-# 1. Kill old agent processes — pkill handles ALL duplicates, screen -X quit only kills one
-pkill -f "python.*api/agent.py" 2>/dev/null
-pkill -f "python.*api/vibe_agent.py" 2>/dev/null
+# 0. Kill old agents — scripts/kill-agents.sh handles ALL duplicates (unlike screen -X quit which only kills 1)
+scripts/kill-agents.sh --all
 sleep 1
-for s in candle; do screen -S "$s" -X quit 2>/dev/null; done
 
-# 2. Clean up stale IPC files
-rm -f /tmp/vibe_chat_req_*.json /tmp/vibe_chat_res_*.json /tmp/strategy_chat_req_*.json /tmp/strategy_chat_res_*.json /tmp/groq_busy.lock
-
-# 3. Start Strategy Lab agent
+# 1. Start Strategy Lab agent
 screen -dmS agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/agent.py' || { echo "FAIL: agent screen"; ALL_OK=false; }
 sleep 1
 
-# 4. Start Vibe Lab agent
+# 2. Start Vibe Lab agent
 screen -dmS vibe-agent bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/python api/vibe_agent.py' || { echo "FAIL: vibe-agent screen"; ALL_OK=false; }
 sleep 1
 
-# 5. Start FastAPI server
+# 3. Start FastAPI server
 screen -dmS candle bash -c 'cd /home/anymous/PROJETS/candle-analytics && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8001' || { echo "FAIL: candle screen"; ALL_OK=false; }
 sleep 3
 curl -sf http://localhost:8001/api/health > /dev/null || { echo "FAIL: health check"; ALL_OK=false; }
 
-# 6. Verify all 3
-echo "agent: $(ps aux | grep 'api/agent.py' | grep -v grep | wc -l) running"
-echo "vibe-agent: $(ps aux | grep 'api/vibe_agent.py' | grep -v grep | wc -l) running"
-echo "candle: $(ps aux | grep 'uvicorn' | grep -v grep | wc -l) running"
+# 4. Verify all 3 (count = 1 each, NOT more — duplicates = stale agent leak)
+echo "agent: $(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l) running"
+echo "vibe-agent: $(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l) running"
+if [ "$(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l)" -gt 1 ] || [ "$(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l)" -gt 1 ]; then
+  echo "⚠️  WARNING: duplicate agents detected — run scripts/kill-agents.sh --all immediately"
+fi
 echo "## Servers: $([ "$ALL_OK" = true ] && echo '✅ all restarted' || echo '❌ some failed')"
 ```
 

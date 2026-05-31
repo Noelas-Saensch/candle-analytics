@@ -21,7 +21,7 @@ fi
 # 2. Agent process
 echo -n "🔍 Strategy Lab agent... "
 if screen -ls 2>/dev/null | grep -q "agent"; then
-  AGENT_COUNT=$(ps aux | grep 'api/agent.py' | grep -v grep | wc -l)
+  AGENT_COUNT=$(ps aux | grep '[a]pi/agent\.py' | grep -v SCREEN | wc -l)
   if [ "$AGENT_COUNT" -ge 1 ]; then
     echo "✅ running (${AGENT_COUNT} proc)"
   else
@@ -36,7 +36,7 @@ fi
 # 3. Vibe agent
 echo -n "🔍 Vibe Lab agent... "
 if screen -ls 2>/dev/null | grep -q "vibe-agent"; then
-  VIBE_COUNT=$(ps aux | grep 'api/vibe_agent.py' | grep -v grep | wc -l)
+  VIBE_COUNT=$(ps aux | grep '[a]pi/vibe_agent\.py' | grep -v SCREEN | wc -l)
   if [ "$VIBE_COUNT" -ge 1 ]; then
     echo "✅ running (${VIBE_COUNT} proc)"
   else

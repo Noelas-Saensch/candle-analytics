@@ -4,8 +4,8 @@ Strategy Lab LLM Agent.
 Watches /tmp/strategy_chat_req_*.json for new messages from the Strategy Lab,
 calls Groq API (Llama 3.3 70B) and writes responses back.
 
-Run in a screen session:
-  screen -dmS agent .venv/bin/python api/agent.py
+Run in a screen session (ALWAYS kill duplicates first):
+  scripts/kill-agents.sh && screen -dmS agent .venv/bin/python api/agent.py
 """
 
 from dotenv import load_dotenv

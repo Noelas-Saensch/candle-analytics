@@ -11,20 +11,20 @@
   "services": {
     "agent": {
       "name": "Strategy Lab Agent",
-      "stop": "screen -S agent -X quit 2>/dev/null || true",
-      "start": "screen -dmS agent bash -c 'cd ${directory} && python3 api/agent.py'",
-      "verify": "ps aux | grep 'api/agent.py' | grep -v grep"
+      "stop": "cd ${directory} && bash scripts/kill-agents.sh",
+      "start": "cd ${directory} && bash scripts/kill-agents.sh && screen -dmS agent bash -c 'cd ${directory} && python3 api/agent.py'",
+      "verify": "ps aux | grep '[a]pi/agent.py' | grep -v grep"
     },
     "vibe-agent": {
       "name": "Vibe Lab Agent",
-      "stop": "screen -S vibe-agent -X quit 2>/dev/null || true",
-      "start": "screen -dmS vibe-agent bash -c 'cd ${directory} && python3 api/vibe_agent.py'",
-      "verify": "ps aux | grep 'api/vibe_agent.py' | grep -v grep"
+      "stop": "cd ${directory} && bash scripts/kill-agents.sh",
+      "start": "cd ${directory} && bash scripts/kill-agents.sh && screen -dmS vibe-agent bash -c 'cd ${directory} && python3 api/vibe_agent.py'",
+      "verify": "ps aux | grep '[a]pi/vibe_agent.py' | grep -v grep"
     },
     "candle": {
       "name": "FastAPI Server",
-      "stop": "screen -S candle -X quit 2>/dev/null || true",
-      "start": "screen -dmS candle bash -c 'cd ${directory} && uvicorn api.main:app --host 0.0.0.0 --port 8001'",
+      "stop": "cd ${directory} && bash scripts/kill-agents.sh --servers",
+      "start": "cd ${directory} && bash scripts/kill-agents.sh --servers && screen -dmS candle bash -c 'cd ${directory} && uvicorn api.main:app --host 0.0.0.0 --port 8001'",
       "verify": "curl -s http://localhost:8001/api/health 2>/dev/null | grep -i ok",
       "verifyTimeoutMs": 5000
     }
